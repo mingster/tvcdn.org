@@ -1,0 +1,23 @@
+<!DOCTYPE html>
+<html>
+
+<body>
+
+<video id="live_video" width="500" height="400" class="video-js vjs-default-skin" controls>
+  <source
+     src="https://live.alarabiya.net/alarabiapublish/alarabiya.smil/playlist.m3u8"
+     type="application/x-mpegURL">
+</video>
+
+</body>
+
+<!-- Put these JS files together with this HTML file -->
+<script src="video.js"></script>
+<script src="videojs.hls.min.js"></script>
+
+<script>
+var player = videojs('live_video');
+player.play();
+</script>
+
+</html>
