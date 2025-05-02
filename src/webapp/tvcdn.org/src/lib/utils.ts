@@ -1,4 +1,4 @@
-import crypto from "crypto";
+import crypto from "node:crypto";
 import axios from "axios";
 import { type ClassValue, clsx } from "clsx";
 import { format } from "date-fns";
@@ -19,10 +19,8 @@ export function getTableName(tables: StoreTables[], tableId: string) {
 
 export function getRandomNum(length: number) {
 	const randomNum = (
-		Math.pow(10, length)
-			.toString()
-			.slice(length - 1) +
-		Math.floor(Math.random() * Math.pow(10, length) + 1).toString()
+		(10 ** length).toString().slice(length - 1) +
+		Math.floor(Math.random() * 10 ** length + 1).toString()
 	).slice(-length);
 
 	return randomNum;

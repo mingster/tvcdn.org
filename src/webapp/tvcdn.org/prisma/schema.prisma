@@ -1,11 +1,92 @@
 generator client {
-  provider = "prisma-client-js"
-  output   = "../node_modules/.prisma/client"
+  provider        = "prisma-client-js"
+  output          = "../node_modules/.prisma/client"
+  previewFeatures = ["relationJoins", "views"]
 }
 
 datasource db {
   provider = "sqlserver"
   url      = env("DATABASE_URL")
+}
+
+
+model User {
+  id            String    @id @default(cuid())
+  name          String?
+  username      String?   @unique
+  email         String?   @unique
+  emailVerified DateTime?
+  image         String?
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
+  isActive      Boolean   @default(false)
+
+  locale String?
+
+  role String? @default("USER")
+  stripeCustomerId String?         @unique
+  Session          Session[]
+  Account          Account?
+  Authenticator    Authenticator[]
+
+  @@index([username])
+  @@index([email])
+}
+
+model Account {
+  id                       String   @id @default(cuid())
+  userId                   String   @unique
+  type                     String
+  provider                 String
+  providerAccountId        String
+  refresh_token            String?
+  access_token             String?
+  expires_at               Int?
+  token_type               String?
+  scope                    String?
+  id_token                 String?
+  session_state            String?
+  refresh_token_expires_in Int?
+  createdAt                DateTime @default(now())
+  updatedAt                DateTime @updatedAt
+  user                     User?    @relation(fields: [userId], references: [id])
+
+  @@unique([provider, providerAccountId])
+  @@index([userId])
+}
+
+model Session {
+  id           String   @id @default(cuid())
+  sessionToken String   @unique
+  userId       String
+  expires      DateTime
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+  user         User     @relation(fields: [userId], references: [id])
+
+  @@index([userId])
+}
+
+model VerificationToken {
+  identifier String
+  token      String
+  expires    DateTime
+
+  @@unique([identifier, token])
+}
+
+model Authenticator {
+  credentialID         String  @unique
+  userId               String
+  providerAccountId    String
+  credentialPublicKey  String
+  counter              Int
+  credentialDeviceType String
+  credentialBackedUp   Boolean
+  transports           String?
+  user                 User    @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@id([userId, credentialID])
 }
 
 /// The underlying table does not contain a valid unique identifier and can therefore currently not be handled by Prisma Client.
@@ -1930,4 +2011,310 @@ model sysdiagrams {
   definition   Bytes?
 
   @@unique([principal_id, name], map: "UK_principal_name")
+}
+
+/// The underlying view does not contain a valid unique identifier and can therefore currently not be handled by Prisma Client.
+view pstv_adminStat {
+  activePaidSubscriber Int?
+  pastPaidUser         Int?
+  subAcct              Int?
+  activeTrialUser      Int?
+  expiredUser          Int?
+  inactive             Int?
+  numOfInquire         Int?
+  totalNumOfSubscriber Int?
+  totalNumOfAcct       Int?
+  numOfCh              Int?
+  numOfAffiliate       Int?
+  numOfConcurrent      Int?
+  numOfRoku            Int?
+  RokuPaid             Int?
+  RokuExpired          Int?
+  RokuTrial            Int?
+  RokuSubAcct          Int?
+  numOfDroid           Int?
+  DroidPaid            Int?
+  DroidExpired         Int?
+  DroidTrial           Int?
+  DroidSubAcct         Int?
+
+  @@ignore
+}
+
+/// The underlying view does not contain a valid unique identifier and can therefore currently not be handled by Prisma Client.
+view pstv_pastPaidView {
+  ipAddr                String?   @db.VarChar(16)
+  geocountry            String?   @db.VarChar(2)
+  exp                   DateTime? @db.DateTime
+  lastWatchSession      DateTime? @db.DateTime
+  Active                Boolean
+  RegistrationDate      DateTime  @db.DateTime
+  OrderID               Int?
+  OrderDate             DateTime? @db.DateTime
+  OrderTotal            Float?    @db.Money
+  LastAppliedCouponCode String    @db.NVarChar(100)
+  Email                 String    @db.NVarChar(255)
+  Username              String    @db.NVarChar(100)
+  CustomerID            Int
+  AffiliateID           Int
+  LastPaymentMethodID   Int
+  TimeZoneID            String    @db.NVarChar(200)
+  DateOfBirth           DateTime? @db.DateTime
+  status                Int?
+
+  @@ignore
+}
+
+/// The underlying view does not contain a valid unique identifier and can therefore currently not be handled by Prisma Client.
+view epg_ProgramBaseView {
+  id            BigInt
+  ch_id         String   @db.UniqueIdentifier
+  channel_title String   @db.NVarChar(255)
+  title         String   @db.NVarChar(255)
+  subTitle      String?  @db.NVarChar(255)
+  showTime      String?  @db.NVarChar(50)
+  timezone      Int?
+  descr         String?  @db.NVarChar(500)
+  duration      Float
+  tags          String?  @db.NVarChar(500)
+  actors        String?  @db.NVarChar(500)
+  lang          String   @db.NVarChar(5)
+  country       String   @db.NChar(2)
+  photo1        String?  @db.VarChar(50)
+  photo2        String?  @db.VarChar(50)
+  photo3        String?  @db.VarChar(50)
+  url1          String?  @db.VarChar(50)
+  url2          String?  @db.VarChar(50)
+  status        Int
+  revision      Int
+  creator       String   @db.NVarChar(256)
+  creationDate  DateTime @db.DateTime
+  modifier      String   @db.NVarChar(256)
+  lastModified  DateTime @db.DateTime
+
+  @@ignore
+}
+
+/// The underlying view does not contain a valid unique identifier and can therefore currently not be handled by Prisma Client.
+view pstv_CustomerStatView {
+  ipAddr                    String?   @db.VarChar(16)
+  geoCity                   String?   @db.NVarChar(50)
+  geoRegion                 String?   @db.NVarChar(50)
+  geoCountry                String?   @db.VarChar(2)
+  exp                       DateTime? @db.DateTime
+  lastWatchSession          DateTime? @db.DateTime
+  Active                    Boolean
+  status                    Int?
+  RegistrationDate          DateTime  @db.DateTime
+  OrderID                   Int?
+  OrderDate                 DateTime? @db.DateTime
+  OrderTotal                Float?    @db.Money
+  LastAppliedCouponCode     String    @db.NVarChar(100)
+  Email                     String    @db.NVarChar(255)
+  Username                  String    @db.NVarChar(100)
+  CustomerID                Int
+  AffiliateID               Int
+  LastPaymentMethodID       Int
+  BillingProvider           Int?
+  SubscribedPackageId       Int?
+  StripeCustomerId          String?   @db.VarChar(18)
+  SubscriptionInvoiceNumber Int?
+  TimeZoneID                String    @db.NVarChar(200)
+  DateOfBirth               DateTime? @db.DateTime
+
+  @@ignore
+}
+
+/// The underlying view does not contain a valid unique identifier and can therefore currently not be handled by Prisma Client.
+view epg_ChannelSourceIntView {
+  id           BigInt
+  ch_id        String   @db.UniqueIdentifier
+  title        String   @db.NVarChar(255)
+  chNum        Int
+  mgmtId       Int
+  sortOrder    Int
+  ch_status    Int
+  server_id    String   @db.UniqueIdentifier
+  hostname     String   @db.VarChar(50)
+  publicIp     String   @db.VarChar(16)
+  streamId     String   @db.VarChar(16)
+  device       String   @db.VarChar(50)
+  width        Int
+  height       Int
+  bitRate_v    Int
+  bitRate_a    Int?
+  encoderType  Int
+  irdName      String   @db.VarChar(50)
+  irdChNum     Int
+  status       Int
+  creator      String   @db.NVarChar(256)
+  creationDate DateTime @db.DateTime
+  modifier     String   @db.NVarChar(256)
+  lastModified DateTime @db.DateTime
+
+  @@ignore
+}
+
+/// The underlying view does not contain a valid unique identifier and can therefore currently not be handled by Prisma Client.
+view pstv_SubAccount_mainAccountUsersView {
+  mainAccountId Int
+  expiration    DateTime @db.DateTime
+
+  @@ignore
+}
+
+/// The underlying view does not contain a valid unique identifier and can therefore currently not be handled by Prisma Client.
+view pstv_onlinePeerView {
+  seqid            BigInt
+  userName         String    @db.NVarChar(50)
+  CustomerID       Int?
+  reportTime       DateTime  @db.DateTime
+  ch_id            String?   @db.UniqueIdentifier
+  isSubAccount     Int?
+  title            String?   @db.NVarChar(255)
+  expiration       DateTime? @db.DateTime
+  status           Int?
+  OrderTotal       Float?    @db.Money
+  AffiliateID      Int?
+  TimeZoneID       String?   @db.NVarChar(200)
+  LanguageID       Int?
+  enKey            String    @db.NVarChar(50)
+  ip               String    @db.VarChar(16)
+  userAgent        String    @db.VarChar(150)
+  playerVer        String    @db.VarChar(50)
+  referrer         String?   @db.VarChar(100)
+  creationDate     DateTime  @db.DateTime
+  message          String?   @db.NVarChar(500)
+  clientId         String?   @db.VarChar(100)
+  RegistrationDate DateTime? @db.DateTime
+  geoCity          String?   @db.NVarChar(50)
+  geoRegion        String?   @db.NVarChar(50)
+  geoCountry       String?   @db.VarChar(2)
+
+  @@ignore
+}
+
+/// The underlying view does not contain a valid unique identifier and can therefore currently not be handled by Prisma Client.
+view pstv_OrderView {
+  Email             String    @db.NVarChar(255)
+  exp               DateTime? @db.DateTime
+  OrderStatusID     Int
+  PaidDate          DateTime? @db.DateTime
+  OrderTotal        Float     @db.Money
+  PaymentMethodName String    @db.NVarChar(100)
+  BillingAddress1   String    @db.NVarChar(100)
+  BillingAddress2   String    @db.NVarChar(100)
+  BillingCity       String    @db.NVarChar(100)
+  BillingCountry    String    @db.NVarChar(100)
+  geocountry        String?   @db.VarChar(2)
+  OrderDate         DateTime  @db.DateTime
+  orderid           Int
+
+  @@ignore
+}
+
+/// The underlying view does not contain a valid unique identifier and can therefore currently not be handled by Prisma Client.
+view pstv_activeSubscriberView {
+  orderId                   Int?
+  orderTotal                Float?    @db.Money
+  orderDate                 DateTime? @db.DateTime
+  SubscriptionInvoiceNumber Int?
+  SubscribedPackageId       Int?
+  BillingProvider           Int?
+  CustomerID                Int
+  CustomerGUID              String    @db.UniqueIdentifier
+  Email                     String    @db.NVarChar(255)
+  Username                  String    @db.NVarChar(100)
+  PasswordHash              String    @db.NVarChar(255)
+  SaltKey                   String    @db.NVarChar(255)
+  AffiliateID               Int
+  BillingAddressID          Int
+  ShippingAddressID         Int
+  LastPaymentMethodID       Int
+  LastAppliedCouponCode     String    @db.NVarChar(100)
+  GiftCardCouponCodes       String    @db.Xml
+  CheckoutAttributes        String    @db.Xml
+  LanguageID                Int
+  CurrencyID                Int
+  TaxDisplayTypeID          Int
+  IsTaxExempt               Boolean
+  IsAdmin                   Boolean
+  IsGuest                   Boolean
+  IsForumModerator          Boolean
+  TotalForumPosts           Int
+  Signature                 String    @db.NVarChar(300)
+  AdminComment              String    @db.NVarChar(4000)
+  Active                    Boolean
+  Deleted                   Boolean
+  RegistrationDate          DateTime  @db.DateTime
+  TimeZoneID                String    @db.NVarChar(200)
+  AvatarID                  Int
+  DateOfBirth               DateTime? @db.DateTime
+  id                        BigInt
+  customer_id               Int
+  expiration                DateTime  @db.DateTime
+  status                    Int
+  creator                   String    @db.NVarChar(50)
+  creationDate              DateTime  @db.DateTime
+  modifier                  String    @db.NVarChar(50)
+  lastModified              DateTime  @db.DateTime
+  note                      String?   @db.NVarChar(500)
+  ipAddr                    String?   @db.VarChar(16)
+  geoCity                   String?   @db.NVarChar(50)
+  geoRegion                 String?   @db.NVarChar(50)
+  geoCountry                String?   @db.VarChar(2)
+
+  @@ignore
+}
+
+/// The underlying view does not contain a valid unique identifier and can therefore currently not be handled by Prisma Client.
+view epg_ProgramScheduledView {
+  channel_id      String    @db.UniqueIdentifier
+  channelTitle    String    @db.NVarChar(255)
+  id              BigInt
+  guid            String    @db.UniqueIdentifier
+  progBase_id     BigInt
+  startTime       DateTime  @db.DateTime
+  stopTime        DateTime  @db.DateTime
+  title           String    @db.NVarChar(255)
+  subTitle        String?   @db.NVarChar(255)
+  descr           String?   @db.NVarChar(500)
+  tags            String?   @db.NVarChar(500)
+  actors          String?   @db.NVarChar(500)
+  previouslyShown DateTime? @db.DateTime
+  status          Int
+  revision        Int
+  sourceUrl1      String?   @db.NVarChar(255)
+  visit           Int?
+  rating          Int
+  creator         String    @db.NVarChar(256)
+  creationDate    DateTime  @db.DateTime
+  modifier        String    @db.NVarChar(256)
+  lastModified    DateTime  @db.DateTime
+
+  @@ignore
+}
+
+/// The underlying view does not contain a valid unique identifier and can therefore currently not be handled by Prisma Client.
+view pstv_expiredTrialView {
+  ipAddr                String?   @db.VarChar(16)
+  geocountry            String?   @db.VarChar(2)
+  exp                   DateTime? @db.DateTime
+  lastWatchSession      DateTime? @db.DateTime
+  Active                Boolean
+  RegistrationDate      DateTime  @db.DateTime
+  OrderID               Int?
+  OrderDate             DateTime? @db.DateTime
+  OrderTotal            Float?    @db.Money
+  LastAppliedCouponCode String    @db.NVarChar(100)
+  Email                 String    @db.NVarChar(255)
+  Username              String    @db.NVarChar(100)
+  CustomerID            Int
+  AffiliateID           Int
+  LastPaymentMethodID   Int
+  TimeZoneID            String    @db.NVarChar(200)
+  DateOfBirth           DateTime? @db.DateTime
+  status                Int?
+
+  @@ignore
 }

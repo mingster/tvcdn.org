@@ -82,6 +82,5 @@ export function useTranslation<
 		}
 	}, [lng, cookies]);
 
-	
 	return ret;
 }
