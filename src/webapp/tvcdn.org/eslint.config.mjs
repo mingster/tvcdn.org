@@ -51,7 +51,6 @@ const eslintConfig = [
       'react/display-name': 'off',
       'react/prop-types': 'off',
       'react/no-unknown-property': 'off',
-
       /*
       'tailwindcss/no-custom-classname': 'off',
       'tailwindcss/migration-from-tailwind-2': 'off',
