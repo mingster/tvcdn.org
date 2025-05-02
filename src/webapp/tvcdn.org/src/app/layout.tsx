@@ -1,3 +1,4 @@
+import { Navbar } from "@/components/global-navbar";
 import { Toaster } from "@/components/ui/sonner";
 import { GetSession } from "@/lib/auth/utils";
 import I18nProvider from "@/providers/i18n-provider";
@@ -5,6 +6,7 @@ import SessionWrapper from "@/providers/session-provider";
 import NextThemeProvider from "@/providers/theme-provider";
 import type { Metadata } from "next";
 import type { Session } from "next-auth";
+import { CookiesProvider } from "next-client-cookies/server";
 import { Geist, Geist_Mono } from "next/font/google";
 import "./globals.css";
 
@@ -42,7 +44,12 @@ export default async function RootLayout({
 						enableSystem
 						disableTransitionOnChange
 					>
-						<I18nProvider>{children}</I18nProvider>
+						<CookiesProvider>
+							<I18nProvider>
+								<Navbar title="" />
+								{children}
+							</I18nProvider>
+						</CookiesProvider>
 					</NextThemeProvider>
 					<Toaster />
 				</body>
