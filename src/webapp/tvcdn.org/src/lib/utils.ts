@@ -1,4 +1,4 @@
-import crypto from "node:crypto";
+import crypto from "crypto";
 import axios from "axios";
 import { type ClassValue, clsx } from "clsx";
 import { format } from "date-fns";
