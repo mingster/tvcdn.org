@@ -7,8 +7,14 @@ import NextThemeProvider from "@/providers/theme-provider";
 import type { Metadata } from "next";
 import type { Session } from "next-auth";
 import { CookiesProvider } from "next-client-cookies/server";
-import { Geist, Geist_Mono } from "next/font/google";
+import { Geist, Geist_Mono, Noto_Sans_TC } from "next/font/google";
 import "./globals.css";
+
+const notoSans = Noto_Sans_TC({
+	variable: "--font-noto-sans",
+	weight: ["600"],
+	subsets: ["latin"],
+});
 
 const geistSans = Geist({
 	variable: "--font-geist-sans",
@@ -36,7 +42,7 @@ export default async function RootLayout({
 		<SessionWrapper session={session}>
 			<html lang="en">
 				<body
-					className={`${geistSans.variable} ${geistMono.variable} antialiased`}
+					className={`${notoSans.variable} ${geistSans.variable} ${geistMono.variable} antialiased dark [--scroll-mt:9.875rem] lg:[--scroll-mt:6.3125rem] [scrollbar-gutter:stable]`}
 				>
 					<NextThemeProvider
 						attribute="class"
