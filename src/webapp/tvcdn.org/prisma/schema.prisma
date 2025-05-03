@@ -29,9 +29,19 @@ model User {
   Account          Account?
   Authenticator    Authenticator[]
 
+  Orders           StoreOrder[]    @relation("UserOrders")
+  SupportTicketFrom SupportTicket[]     @relation("SupportTicketFrom")
+  SupportTicketTo   SupportTicket[]     @relation("SupportTicketTo")
+  NotificationFrom  StoreNotification[] @relation("NotificationFrom")
+  NotificationTo    StoreNotification[] @relation("NotificationTo")
+  Store             Store[]
+  Addresses         Address[]
+  Rsvp              Rsvp[]
+
   @@index([username])
   @@index([email])
 }
+
 
 model Account {
   id                       String   @id @default(cuid())
@@ -84,11 +94,809 @@ model Authenticator {
   credentialDeviceType String
   credentialBackedUp   Boolean
   transports           String?
-  user                 User    @relation(fields: [userId], references: [id], onDelete: Cascade)
+  user                 User    @relation(fields: [userId], references: [id], onUpdate: NoAction, onDelete: NoAction)
 
   @@id([userId, credentialID])
 }
 
+model PlatformSettings {
+  id              String  @id @default(cuid())
+  stripeProductId String?
+  stripePriceId   String?
+}
+
+model Country {
+  name          String
+  unCode        String    @unique @db.VarChar(3)
+  allowBilling  Boolean   @default(false)
+  allowShipping Boolean   @default(false)
+  allowInStore  Boolean   @default(false)
+  alpha3        String    @id @unique @db.VarChar(3)
+  Address       Address[]
+
+  @@index([name])
+  @@index([alpha3])
+}
+
+model Currency {
+  id             String           @id @unique
+  name           String
+  symbol         String?
+  ISOdigits      Int?
+  ISOnum         Int?
+  decimals       Int?
+  demonym        String
+  majorPlural    String?
+  majorSingle    String?
+  minorPlural    String?
+  minorSingle    String?
+  numToBasic     Int?
+  symbolNative   String
+  ShippingMethod ShippingMethod[]
+
+  @@index([name])
+  @@index([demonym])
+  @@index([symbol])
+  @@index([symbolNative])
+}
+
+model Locale {
+  id                String @id @unique @db.VarChar(5)
+  name              String
+  lng               String //2 digit language code
+  defaultCurrencyId String
+
+  @@index([id])
+  @@index([name])
+}
+
+model Address {
+  id          String   @id @default(uuid())
+  userId      String
+  firstName   String
+  lastName    String
+  company     String?
+  countryId   String  @db.VarChar(3)
+  streetLine1 String
+  streetLine2 String?
+  city        String
+  district    String?
+  province    String?
+  postalCode  String?
+  phoneNumber String
+  isDefault   Boolean  @default(true)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+  reference   String?
+  type        String?
+
+  User    User    @relation(fields: [userId], references: [id], onUpdate: NoAction, onDelete: NoAction)
+  Country Country @relation(fields: [countryId], references: [alpha3])
+
+  @@index([userId])
+  @@index([countryId])
+}
+
+model PaymentMethod {
+  id            String   @id @default(uuid())
+  name          String   @unique
+  payUrl        String   @default("")
+  priceDescr    String   @default("")
+  fee           Decimal  @default("0.029")
+  feeAdditional Decimal  @default("0")
+  clearDays     Int      @default(3)
+  isDeleted     Boolean  @default(false)
+  isDefault     Boolean  @default(false)
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  StorePaymentMethodMapping StorePaymentMethodMapping[]
+  StoreOrder                StoreOrder[]
+}
+
+model StorePaymentMethodMapping {
+  id                 String  @id @default(uuid())
+  storeId            String
+  methodId           String
+  paymentDisplayName String?
+
+  Store         Store         @relation(fields: [storeId], references: [id], onUpdate: NoAction, onDelete: NoAction)
+  PaymentMethod PaymentMethod @relation(fields: [methodId], references: [id], onUpdate: NoAction, onDelete: NoAction)
+
+  @@unique([storeId, methodId])
+  @@index([storeId])
+  @@index([methodId])
+}
+
+model ShippingMethod {
+  id           String   @id @default(uuid())
+  identifier   String   @default("") //used in the code to identify default methods
+  name         String   @unique
+  description  String?
+  basic_price  Decimal  @default(0)
+  currencyId   String   @default("twd")
+  isDeleted    Boolean  @default(false)
+  isDefault    Boolean  @default(false)
+  shipRequried Boolean  @default(true)
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  currency Currency                 @relation(fields: [currencyId], references: [id])
+  stores   StoreShipMethodMapping[] @relation("ShipMethodStoreMapping")
+  prices   ShippingMethodPrice[]    @relation("ShipMethodPrices")
+
+  Shipment   Shipment[]   @relation("ShipmentToShipMethod")
+  StoreOrder StoreOrder[]
+
+  @@index([name])
+  @@index([identifier])
+  @@index([currencyId])
+}
+
+model ShippingMethodPrice {
+  id               String  @id @default(uuid())
+  methodId         String
+  dimension_length Int //measurement in cm 長寬高
+  dimension_width  Int //measurement in cm
+  dimension_height Int //measurement in cm
+  dimension_weight Int //measurement in kg
+  price            Decimal
+
+  ShippingMethod ShippingMethod @relation("ShipMethodPrices", fields: [methodId], references: [id])
+
+  @@index([methodId])
+}
+
+model StoreShipMethodMapping {
+  id       String @id @default(uuid())
+  storeId  String
+  methodId String
+
+  ShippingMethod ShippingMethod @relation("ShipMethodStoreMapping", fields: [methodId], references: [id])
+  Store          Store          @relation(fields: [storeId], references: [id])
+
+  @@unique([storeId, methodId])
+  @@index([storeId])
+  @@index([methodId])
+}
+
+model Shipment {
+  id                 String    @id @default(uuid())
+  orderId            String
+  shippingMethodId   String
+  trackingNumber     String?
+  trackingUrl        String?
+  shippingCost       Decimal
+  shippingStatus     Int       @default(10) //should be value in @/lib/enum/ShippingStatus
+  totalWeight        Decimal?
+  shippedDate        DateTime?
+  deliveryDate       DateTime?
+  readyForPickupDate DateTime?
+  createdAt          DateTime  @default(now())
+  updatedAt          DateTime  @updatedAt
+
+  Order          StoreOrder     @relation(fields: [orderId], references: [id], onUpdate: NoAction, onDelete: NoAction)
+  ShippingMethod ShippingMethod @relation("ShipmentToShipMethod", fields: [shippingMethodId], references: [id], onUpdate: NoAction, onDelete: NoAction)
+
+  @@index([orderId])
+  @@index([shippingMethodId])
+}
+
+model Subscription {
+  id              String   @id @default(cuid())
+  storeId         String   @unique
+  userId          String
+  expiration      DateTime
+  status          Int
+  invoiceNumber   String?
+  billingProvider String
+  subscriptionId  String?
+  note            String
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([userId])
+  @@index([storeId])
+}
+
+model SubscriptionPayment {
+  id                 String    @id @default(cuid())
+  userId             String
+  storeId            String
+  isPaid             Boolean
+  amount             Decimal
+  currency           String    @default("twd")
+  checkoutAttributes String    @default("")
+  paidAt             DateTime?
+  createdAt          DateTime  @default(now())
+  note               String?
+
+  @@index([userId])
+  @@index([storeId])
+  @@index([isPaid])
+}
+
+model Rsvp {
+  id         String   @id @default(uuid())
+  storeId    String
+  userId     String?
+  orderId    String?
+  tableId    String?
+  numOfAdult Int      @default(2)
+  numOfChild Int      @default(0)
+  rsvpTime   DateTime
+  arriveTime DateTime
+  status     Int      @default(0)
+  message    String?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  Store Store        @relation(fields: [storeId], references: [id], onUpdate: NoAction, onDelete: NoAction)
+  User  User?        @relation(fields: [userId], references: [id], onUpdate: NoAction, onDelete: NoAction)
+  Order StoreOrder?  @relation(fields: [orderId], references: [id], onUpdate: NoAction, onDelete: NoAction)
+  Table StoreTables? @relation(fields: [tableId], references: [id], onUpdate: NoAction, onDelete: NoAction)
+
+  @@index([storeId])
+  @@index([userId])
+  @@index([orderId])
+  @@index([tableId])
+}
+
+model Store {
+  id      String @id @default(uuid())
+  name    String
+  ownerId String
+
+  defaultCountry  String  @default("USA")
+  defaultCurrency String  @default("usd")
+  isDeleted       Boolean @default(false)
+  defaultLocale   String  @default("en")
+  defaultTimezone Int     @default(-8)
+
+  autoAcceptOrder      Boolean @default(true)
+  isOpen               Boolean @default(true)
+  acceptAnonymousOrder Boolean @default(true)
+
+  acceptReservation Boolean @default(true)
+  rsvpPrepaid       Boolean @default(false) //訂位需付訂金
+
+  requireSeating Boolean @default(false) //需要帶位or not
+  requirePrepaid Boolean @default(false) //先付款再出貨 @map("requirePrepaid")
+
+  useBusinessHours Boolean @default(true)
+
+  payoutSchedule  Int     @default(0)
+  bankCode        String?
+  bankAccount     String?
+  bankAccountName String?
+
+  level             Int     @default(0) //store's subscription level
+  customDomain      String? @unique
+  LINE_PAY_ID       String?
+  LINE_PAY_SECRET   String?
+  STRIPE_SECRET_KEY String?
+
+  logo         String?
+  logoPublicId String?
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  Owner User @relation(fields: [ownerId], references: [id], onUpdate: NoAction, onDelete: NoAction)
+
+  Products                   Product[]                    @relation("StoreToProduct")
+  Categories                 Category[]
+  StoreOrders                StoreOrder[]                 @relation("StoreToOrder")
+  FaqCategories              FaqCategory[]
+  StoreAnnouncement          StoreAnnouncement[]
+  SupportTicket              SupportTicket[]
+  StoreNotification          StoreNotification[]
+  StoreShippingMethods       StoreShipMethodMapping[]
+  StorePaymentMethods        StorePaymentMethodMapping[]
+  StoreTables                StoreTables[]
+  StoreProductOptionTemplate StoreProductOptionTemplate[]
+  Rsvp                       Rsvp[]
+  StoreSettings              StoreSettings?
+
+  @@index([ownerId])
+  @@index([name])
+  @@index([defaultCountry])
+  @@index([defaultCurrency])
+  @@index([level])
+  @@index([customDomain])
+}
+
+model StoreSettings {
+  id                  String  @id @default(uuid())
+  storeId             String  @unique
+  orderNoteToCustomer String?
+  privacyPolicy       String?
+  tos                 String?
+  aboutUs             String?
+  description         String?
+  aboutUsVideoUrl     String?
+  supportEmail        String?
+  supportPhoneNumber  String?
+  facebookUrl         String?
+  igUrl               String?
+  lineId              String?
+  telegramId          String?
+  twitterId           String?
+  whatsappId          String?
+  wechatId            String?
+
+  firstName   String?
+  lastName    String?
+  company     String?
+  country     String?
+  streetLine1 String?
+  streetLine2 String?
+  city        String?
+  district    String?
+  province    String?
+  postalCode  String?
+  phoneNumber String?
+
+  businessHours String?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  Store Store @relation(fields: [storeId], references: [id], onUpdate: NoAction, onDelete: NoAction)
+
+  @@index([storeId])
+}
+
+model StoreTables {
+  id        String @id @default(uuid())
+  storeId   String
+  tableName String
+  capacity  Int    @default(2)
+
+  Store Store  @relation(fields: [storeId], references: [id], onUpdate: NoAction, onDelete: NoAction)
+  Rsvp  Rsvp[]
+
+  @@unique([tableName])
+  @@index([storeId])
+  @@index([tableName])
+}
+
+model StoreAnnouncement {
+  id        String   @id @default(uuid())
+  storeId   String
+  message   String
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  Store Store @relation(fields: [storeId], references: [id], onUpdate: NoAction, onDelete: NoAction)
+
+  @@index([storeId])
+  @@index([updatedAt])
+  @@map("StoreAnnouncement")
+}
+
+model ProductImages {
+  id          String  @id @default(uuid())
+  productId   String
+  url         String  @unique
+  imgPublicId String  @unique
+  Product     Product @relation(fields: [productId], references: [id])
+
+  @@index([url])
+  @@index([imgPublicId])
+  @@index([productId])
+}
+
+model Product {
+  id          String   @id @default(uuid())
+  storeId     String
+  name        String
+  description String?
+  isFeatured  Boolean  @default(false)
+  status      Int      @default(1) //ProductStatus, 1 = Published, 0 = Draft
+  currency    String   @default("twd")
+  price       Decimal  @default(0)
+  useOption   Boolean  @default(true) // when true, price is calculated based on product option
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  Store             Store               @relation("StoreToProduct", fields: [storeId], references: [id], onUpdate: NoAction, onDelete: NoAction)
+  ProductImages     ProductImages[]
+  ProductCategories ProductCategories[]
+
+  ProductAttribute ProductAttribute? @relation("prodAttrToProduct")
+  OrderItems       OrderItem[]       @relation("itemToProduct")
+  OrderItemViews   orderitemview[]   @relation("itemViewToProduct")
+  ProductOptions   ProductOption[]
+
+  @@index([name])
+  @@index([storeId])
+  @@index([isFeatured])
+  @@index([status])
+}
+
+//產品選項規格 across this store. it's used as template so that we don't need to re-enter option for each product.
+model StoreProductOptionTemplate {
+  id            String  @id @default(uuid())
+  storeId       String
+  optionName    String //規格 | 甜度/冰 | 配料
+  isRequired    Boolean @default(false) //必選
+  isMultiple    Boolean @default(false) // 0:radiobox|1:checkboxes
+  minSelection  Int     @default(0)
+  maxSelection  Int     @default(0) // 至少選1項 | 最多選3項
+  allowQuantity Boolean @default(false)
+  minQuantity   Int     @default(0) // 至少選1項 | 最多選3項
+  maxQuantity   Int     @default(0) // 至少選1項 | 最多選3項
+  sortOrder     Int     @default(1)
+
+  Store                                Store                                  @relation(fields: [storeId], references: [id], onUpdate: NoAction, onDelete: NoAction)
+  StoreProductOptionSelectionsTemplate StoreProductOptionSelectionsTemplate[]
+
+  @@unique([storeId, optionName])
+  @@index([storeId])
+  @@index([optionName])
+}
+
+//產品選項 across this store. it's used as template so that we don't need to re-enter option for each product.
+model StoreProductOptionSelectionsTemplate {
+  id        String  @id @default(uuid())
+  optionId  String
+  name      String // 大,小 | 半糖,少糖,無糖 | 冰,少冰,多冰
+  price     Decimal @default(0)
+  isDefault Boolean @default(false)
+
+  //quantity Int     @default(1)
+
+  StoreProductOptionTemplate StoreProductOptionTemplate @relation(fields: [optionId], references: [id], onUpdate: NoAction, onDelete: NoAction)
+
+  @@unique([optionId, name])
+  @@index([optionId])
+  @@index([name])
+}
+
+//產品選項
+model ProductOption {
+  id                      String                    @id @default(uuid())
+  productId               String
+  optionName              String //規格 | 甜度/冰 | 任選3配料
+  isRequired              Boolean                   @default(false) //必選
+  isMultiple              Boolean                   @default(false) // 0:radiobox|1:checkboxes
+  minSelection            Int                       @default(0) //至少選1項
+  maxSelection            Int                       @default(0) // 最多選3項
+  allowQuantity           Boolean                   @default(false)
+  minQuantity             Int                       @default(0) // 至少選1個
+  maxQuantity             Int                       @default(0) // 最多選3個
+  sortOrder               Int                       @default(1)
+  Product                 Product                   @relation(fields: [productId], references: [id], onUpdate: NoAction, onDelete: NoAction)
+  ProductOptionSelections ProductOptionSelections[]
+
+  @@unique([productId, optionName])
+  @@index([productId])
+  @@index([optionName])
+}
+
+model ProductOptionSelections {
+  id        String  @id @default(uuid())
+  optionId  String
+  name      String // 大,小 | 半糖,少糖,無糖 | 冰,少冰,多冰
+  price     Decimal @default(0)
+  isDefault Boolean @default(false)
+  //quantity Int     @default(1)
+
+  ProductOption ProductOption @relation(fields: [optionId], references: [id], onUpdate: NoAction, onDelete: NoAction)
+
+  @@unique([optionId, name])
+  @@index([optionId])
+  @@index([name])
+}
+
+model ProductCategories {
+  id         String @id @default(uuid())
+  categoryId String
+  productId  String
+  sortOrder  Int
+
+  Product  Product  @relation(fields: [productId], references: [id], onUpdate: NoAction, onDelete: NoAction)
+  Category Category @relation(fields: [categoryId], references: [id], onUpdate: NoAction, onDelete: NoAction)
+
+  @@unique([categoryId, productId])
+  @@index([categoryId])
+  @@index([productId])
+}
+
+model Category {
+  id         String   @id @default(uuid())
+  storeId    String
+  name       String
+  isFeatured Boolean  @default(false)
+  sortOrder  Int
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+
+  Store             Store               @relation(fields: [storeId], references: [id], onUpdate: NoAction, onDelete: NoAction)
+  ProductCategories ProductCategories[]
+
+  @@index([storeId])
+  @@index([name])
+}
+
+model ProductAttribute {
+  id                       String    @id @default(uuid())
+  productId                String    @unique
+  isRecurring              Boolean   @default(false)
+  interval                 Int?
+  intervalCount            Int?
+  trialPeriodDays          Int?
+  stripePriceId            String?
+  isBrandNew               Boolean   @default(true)
+  isShipRequired           Boolean   @default(false)
+  isFreeShipping           Boolean   @default(false)
+  additionalShipCost       Decimal   @default(0)
+  stock                    Int       @default(0)
+  displayStockAvailability Boolean   @default(false)
+  displayStockQuantity     Boolean   @default(false)
+  allowBackOrder           Boolean   @default(false)
+  orderMinQuantity         Int       @default(1)
+  orderMaxQuantity         Int       @default(0)
+  disableBuyButton         Boolean   @default(false)
+  weight                   Decimal   @default(0)
+  height                   Decimal   @default(0)
+  width                    Decimal   @default(0)
+  availableStartDate       DateTime?
+  availableEndDate         DateTime?
+  mfgPartNumber            String?
+
+  Product Product @relation("prodAttrToProduct", fields: [productId], references: [id], onUpdate: NoAction, onDelete: NoAction)
+
+  @@index([productId])
+}
+
+model StoreLedger {
+  id          String  @id @default(uuid())
+  storeId     String
+  orderId     String
+  amount      Decimal
+  fee         Decimal // fee from payment type. e.g. linepay = 3%
+  platformFee Decimal // riben.life's fee
+  currency    String  @default("twd")
+  type        Int     @default(0) // 0: 代收 | 1: store's own payment provider
+  balance     Decimal
+  description String
+  note        String?
+
+  createdAt   DateTime @default(now())
+  availablity DateTime
+
+  StoreOrder StoreOrder @relation(fields: [orderId], references: [id], onUpdate: NoAction, onDelete: NoAction)
+
+  @@index([storeId])
+  @@index([orderId])
+  @@index([createdAt])
+}
+
+model StoreOrder {
+  id                 String    @id @default(uuid())
+  storeId            String
+  userId             String?
+  tableId            String?
+  orderNum           Int      @default(autoincrement())
+  pickupCode         String?
+  isPaid             Boolean   @default(false)
+  paidDate           DateTime?
+  checkoutAttributes String    @default("")
+  checkoutRef        String    @default("")
+  currency           String    @default("twd")
+  currencyRate       Decimal   @default(1)
+
+  discount Decimal @default(0)
+
+  paymentMethodId String?
+  paymentStatus   Int     @default(10)
+  refundAmount    Decimal @default(0)
+  returnStatus    Int     @default(0)
+
+  shippingMethodId String
+  shippingAddress  String  @default("")
+  shippingCost     Decimal @default(0)
+  shippingStatus   Int     @default(10)
+
+  orderStatus Int @default(10)
+
+  paymentCost Decimal @default(0)
+  taxRate     Decimal @default(0)
+  orderTax    Decimal @default(0)
+  orderTotal  Decimal @default(0)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  Store          Store           @relation("StoreToOrder", fields: [storeId], references: [id], onUpdate: NoAction, onDelete: NoAction)
+  User           User?           @relation("UserOrders", fields: [userId], references: [id])
+  OrderNotes     OrderNote[]     @relation("orderNoteToStoreOrder")
+  OrderItems     OrderItem[]     @relation("itemToStoreOrder")
+  OrderItemView  orderitemview[] @relation("itemViewToStoreOrder")
+  ShippingMethod ShippingMethod  @relation(fields: [shippingMethodId], references: [id])
+  Shipment       Shipment[]
+
+  PaymentMethod PaymentMethod? @relation(fields: [paymentMethodId], references: [id])
+  Rsvp          Rsvp[]
+  StoreLedger   StoreLedger[]
+
+  @@index([userId])
+  @@index([paymentMethodId])
+  @@index([paymentStatus])
+  @@index([returnStatus])
+  @@index([shippingMethodId])
+  @@index([shippingStatus])
+  @@index([storeId])
+  @@index([checkoutAttributes])
+  @@index([isPaid])
+  @@index([paidDate])
+  @@index([currency])
+  @@index([updatedAt])
+}
+
+model OrderItem {
+  id        String @id @default(uuid())
+  orderId   String
+  productId String
+
+  //copy over value
+  productName  String
+  variants     String? // hold values of product options selection delimited by comma
+  variantCosts String? // hold values of variant cost delimited by comma
+  quantity     Int
+  unitDiscount Decimal @default(0)
+  unitPrice    Decimal
+
+  Order   StoreOrder @relation("itemToStoreOrder", fields: [orderId], references: [id], onUpdate: NoAction, onDelete: NoAction)
+  Product Product    @relation("itemToProduct", fields: [productId], references: [id])
+
+  @@index([orderId])
+  @@index([productId])
+}
+
+model OrderNote {
+  id                String     @id @default(uuid())
+  orderId           String
+  note              String
+  displayToCustomer Boolean    @default(false)
+  createdAt         DateTime   @default(now())
+  updatedAt         DateTime   @updatedAt
+  Order             StoreOrder @relation("orderNoteToStoreOrder", fields: [orderId], references: [id], onUpdate: NoAction, onDelete: NoAction)
+
+  @@index([orderId])
+  @@index([updatedAt])
+}
+
+model FaqCategory {
+  id        String @id @default(uuid())
+  storeId   String
+  name      String
+  sortOrder Int
+  FAQ       Faq[]
+
+  Store Store @relation(fields: [storeId], references: [id], onUpdate: NoAction, onDelete: NoAction)
+
+  @@index([storeId])
+  @@index([name])
+}
+
+model Faq {
+  id          String      @id @default(uuid())
+  categoryId  String
+  question    String
+  answer      String
+  sortOrder   Int
+  FaqCategory FaqCategory @relation(fields: [categoryId], references: [id], onUpdate: NoAction, onDelete: NoAction)
+
+  @@index([categoryId])
+  @@index([sortOrder])
+}
+
+model SystemMessage {
+  id        String   @id @default(uuid())
+  message   String
+  createdBy String
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([updatedAt])
+}
+
+model StoreNotification {
+  id         String   @id @default(uuid())
+  senderId   String
+  recipentId String
+  storeId    String?
+  subject    String
+  message    String
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+
+  sendTries Int       @default(0)
+  sentOn    DateTime?
+
+  isRead               Boolean @default(false)
+  isDeletedByAuthor    Boolean @default(false)
+  isDeletedByRecipient Boolean @default(false)
+
+  Sender   User @relation("NotificationFrom", fields: [senderId], references: [id], onUpdate: NoAction, onDelete: NoAction)
+  Recipent User @relation("NotificationTo", fields: [recipentId], references: [id], onUpdate: NoAction, onDelete: NoAction)
+
+  Store Store? @relation(fields: [storeId], references: [id], onUpdate: NoAction, onDelete: NoAction)
+
+  @@index([storeId])
+  @@index([senderId])
+  @@index([recipentId])
+  @@index([updatedAt])
+}
+
+model QueuedEmail {
+  id        String    @id @default(uuid())
+  priority  Int
+  from      String
+  fromName  String    @default("")
+  to        String
+  toName    String    @default("")
+  cc        String    @default("")
+  bcc       String    @default("")
+  subject   String
+  body      String
+  createdOn DateTime  @default(now())
+  sendTries Int       @default(0)
+  sentOn    DateTime?
+
+  @@index([sendTries])
+  @@index([createdOn])
+  @@index([from])
+  @@index([to])
+}
+
+model SupportTicket {
+  id         String   @id @default(uuid())
+  threadId   String
+  storeId    String
+  senderId   String
+  recipentId String
+  department String
+  subject    String
+  message    String
+  status     Int      @default(0)
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+
+  Store    Store @relation(fields: [storeId], references: [id], onUpdate: NoAction, onDelete: NoAction)
+  Sender   User  @relation("SupportTicketFrom", fields: [senderId], references: [id], onUpdate: NoAction, onDelete: NoAction)
+  Recipent User  @relation("SupportTicketTo", fields: [recipentId], references: [id], onUpdate: NoAction, onDelete: NoAction)
+
+  @@index([updatedAt])
+  @@index([threadId])
+  @@index([senderId])
+  @@index([recipentId])
+  @@index([storeId])
+}
+
+/// The underlying view does not contain a valid unique identifier and can therefore currently not be handled by Prisma Client.
+view orderitemview {
+  id           String   @unique
+  orderId      String
+  productId    String
+  quantity     Int
+  unitDiscount Decimal?
+  unitPrice    Decimal
+  name         String
+  url          String?
+  variants     String? // hold values of product options selection delimited by comma
+  variantCosts String? // hold values of variant cost delimited by comma
+
+  Order   StoreOrder @relation("itemViewToStoreOrder", fields: [orderId], references: [id], onUpdate: NoAction, onDelete: NoAction)
+  Product Product    @relation("itemViewToProduct", fields: [productId], references: [id])
+
+  @@index([orderId])
+  @@index([productId])
+}
 /// The underlying table does not contain a valid unique identifier and can therefore currently not be handled by Prisma Client.
 model drgnMemberTB {
   MID           Int
@@ -145,8 +953,8 @@ model Nop_ACL {
   CustomerActionID   Int
   CustomerRoleID     Int
   Allow              Boolean
-  Nop_CustomerAction Nop_CustomerAction @relation(fields: [CustomerActionID], references: [CustomerActionID], onDelete: Cascade, map: "FK_Nop_ACL_Nop_CustomerAction")
-  Nop_CustomerRole   Nop_CustomerRole   @relation(fields: [CustomerRoleID], references: [CustomerRoleID], onDelete: Cascade, map: "FK_Nop_ACL_Nop_CustomerRole")
+  Nop_CustomerAction Nop_CustomerAction @relation(fields: [CustomerActionID], references: [CustomerActionID], onUpdate: NoAction, onDelete: NoAction, map: "FK_Nop_ACL_Nop_CustomerAction")
+  Nop_CustomerRole   Nop_CustomerRole   @relation(fields: [CustomerRoleID], references: [CustomerRoleID], onUpdate: NoAction, onDelete: NoAction, map: "FK_Nop_ACL_Nop_CustomerRole")
 
   @@unique([CustomerActionID, CustomerRoleID], map: "IX_Nop_ACL_Unique")
 }
@@ -157,7 +965,7 @@ model Nop_ACLPerObject {
   ObjectTypeId     Int
   CustomerRoleId   Int
   Deny             Boolean
-  Nop_CustomerRole Nop_CustomerRole @relation(fields: [CustomerRoleId], references: [CustomerRoleID], onDelete: Cascade, map: "FK_Nop_ACLPerObject_Nop_CustomerRole")
+  Nop_CustomerRole Nop_CustomerRole @relation(fields: [CustomerRoleId], references: [CustomerRoleID], onUpdate: NoAction, onDelete: NoAction, map: "FK_Nop_ACLPerObject_Nop_CustomerRole")
 }
 
 model Nop_ActivityLog {
@@ -166,8 +974,8 @@ model Nop_ActivityLog {
   CustomerID          Int
   Comment             String              @db.NVarChar(4000)
   CreatedOn           DateTime            @db.DateTime
-  Nop_ActivityLogType Nop_ActivityLogType @relation(fields: [ActivityLogTypeID], references: [ActivityLogTypeID], onDelete: Cascade, map: "FK_Nop_ActivityLog_Nop_ActivityLogType")
-  Nop_Customer        Nop_Customer        @relation(fields: [CustomerID], references: [CustomerID], onDelete: Cascade, map: "FK_Nop_ActivityLog_Nop_Customer")
+  Nop_ActivityLogType Nop_ActivityLogType @relation(fields: [ActivityLogTypeID], references: [ActivityLogTypeID], onUpdate: NoAction, onDelete: NoAction, map: "FK_Nop_ActivityLog_Nop_ActivityLogType")
+  Nop_Customer        Nop_Customer        @relation(fields: [CustomerID], references: [CustomerID], onUpdate: NoAction, onDelete: NoAction, map: "FK_Nop_ActivityLog_Nop_Customer")
 }
 
 model Nop_ActivityLogType {
@@ -196,7 +1004,7 @@ model Nop_Address {
   CountryID        Int
   CreatedOn        DateTime     @db.DateTime
   UpdatedOn        DateTime     @default(dbgenerated("getutcdate()"), map: "DF_Nop_Address_UpdatedOn") @db.DateTime
-  Nop_Customer     Nop_Customer @relation(fields: [CustomerID], references: [CustomerID], onDelete: Cascade, map: "FK_Nop_Address_Nop_Customer1")
+  Nop_Customer     Nop_Customer @relation(fields: [CustomerID], references: [CustomerID], onUpdate: NoAction, onDelete: NoAction, map: "FK_Nop_Address_Nop_Customer1")
 
   @@index([CustomerID], map: "IX_Nop_Address_CustomerID")
 }
@@ -245,7 +1053,7 @@ model Nop_BlogComment {
   IPAddress     String       @default("", map: "DF_Nop_BlogComment_IPAddress") @db.NVarChar(100)
   CommentText   String       @db.NVarChar(Max)
   CreatedOn     DateTime     @db.DateTime
-  Nop_BlogPost  Nop_BlogPost @relation(fields: [BlogPostID], references: [BlogPostID], onDelete: Cascade, map: "FK_Nop_BlogComment_Nop_BlogPost")
+  Nop_BlogPost  Nop_BlogPost @relation(fields: [BlogPostID], references: [BlogPostID], onUpdate: NoAction, onDelete: NoAction, map: "FK_Nop_BlogComment_Nop_BlogPost")
 
   @@index([BlogPostID], map: "IX_Nop_BlogComment_BlogPostID")
 }
@@ -260,8 +1068,8 @@ model Nop_BlogPost {
   CreatedByID           Int
   CreatedOn             DateTime          @db.DateTime
   Nop_BlogComment       Nop_BlogComment[]
-  Nop_Customer          Nop_Customer      @relation(fields: [CreatedByID], references: [CustomerID], onDelete: Cascade, map: "FK_Nop_BlogPost_Nop_Customer")
-  Nop_Language          Nop_Language      @relation(fields: [LanguageID], references: [LanguageId], onDelete: Cascade, map: "FK_Nop_BlogPost_Nop_Language")
+  Nop_Customer          Nop_Customer      @relation(fields: [CreatedByID], references: [CustomerID], onUpdate: NoAction, onDelete: NoAction, map: "FK_Nop_BlogPost_Nop_Customer")
+  Nop_Language          Nop_Language      @relation(fields: [LanguageID], references: [LanguageId], onUpdate: NoAction, onDelete: NoAction, map: "FK_Nop_BlogPost_Nop_Language")
 
   @@index([LanguageID], map: "IX_Nop_BlogPost_LanguageID")
 }
@@ -305,8 +1113,8 @@ model Nop_Category {
 model Nop_Category_Discount_Mapping {
   CategoryID   Int
   DiscountID   Int
-  Nop_Category Nop_Category @relation(fields: [CategoryID], references: [CategoryID], onDelete: Cascade, map: "FK_Nop_Category_Discount_Mapping_Nop_Category")
-  Nop_Discount Nop_Discount @relation(fields: [DiscountID], references: [DiscountID], onDelete: Cascade, map: "FK_Nop_Category_Discount_Mapping_Nop_Discount")
+  Nop_Category Nop_Category @relation(fields: [CategoryID], references: [CategoryID], onUpdate: NoAction, onDelete: NoAction, map: "FK_Nop_Category_Discount_Mapping_Nop_Category")
+  Nop_Discount Nop_Discount @relation(fields: [DiscountID], references: [DiscountID], onUpdate: NoAction, onDelete: NoAction, map: "FK_Nop_Category_Discount_Mapping_Nop_Discount")
 
   @@id([CategoryID, DiscountID], map: "PK_Nop_Category_Discount_Mapping")
 }
@@ -321,8 +1129,8 @@ model Nop_CategoryLocalized {
   MetaDescription     String       @db.NVarChar(4000)
   MetaTitle           String       @db.NVarChar(400)
   SEName              String       @db.NVarChar(100)
-  Nop_Category        Nop_Category @relation(fields: [CategoryID], references: [CategoryID], onDelete: Cascade, map: "FK_Nop_CategoryLocalized_Nop_Category")
-  Nop_Language        Nop_Language @relation(fields: [LanguageID], references: [LanguageId], onDelete: Cascade, map: "FK_Nop_CategoryLocalized_Nop_Language")
+  Nop_Category        Nop_Category @relation(fields: [CategoryID], references: [CategoryID], onUpdate: NoAction, onDelete: NoAction, map: "FK_Nop_CategoryLocalized_Nop_Category")
+  Nop_Language        Nop_Language @relation(fields: [LanguageID], references: [LanguageId], onUpdate: NoAction, onDelete: NoAction, map: "FK_Nop_CategoryLocalized_Nop_Language")
 
   @@unique([CategoryID, LanguageID], map: "IX_Nop_CategoryLocalized_Unique1")
 }
@@ -357,8 +1165,8 @@ model Nop_CheckoutAttributeLocalized {
   LanguageID                   Int
   Name                         String                @db.NVarChar(100)
   TextPrompt                   String                @db.NVarChar(300)
-  Nop_CheckoutAttribute        Nop_CheckoutAttribute @relation(fields: [CheckoutAttributeID], references: [CheckoutAttributeID], onDelete: Cascade, map: "FK_Nop_CheckoutAttributeLocalized_Nop_CheckoutAttribute")
-  Nop_Language                 Nop_Language          @relation(fields: [LanguageID], references: [LanguageId], onDelete: Cascade, map: "FK_Nop_CheckoutAttributeLocalized_Nop_Language")
+  Nop_CheckoutAttribute        Nop_CheckoutAttribute @relation(fields: [CheckoutAttributeID], references: [CheckoutAttributeID], onUpdate: NoAction, onDelete: NoAction, map: "FK_Nop_CheckoutAttributeLocalized_Nop_CheckoutAttribute")
+  Nop_Language                 Nop_Language          @relation(fields: [LanguageID], references: [LanguageId], onUpdate: NoAction, onDelete: NoAction, map: "FK_Nop_CheckoutAttributeLocalized_Nop_Language")
 
   @@unique([CheckoutAttributeID, LanguageID], map: "IX_Nop_CheckoutAttributeLocalized_Unique1")
 }
@@ -371,7 +1179,7 @@ model Nop_CheckoutAttributeValue {
   WeightAdjustment                    Decimal                               @db.Decimal(18, 4)
   IsPreSelected                       Boolean
   DisplayOrder                        Int
-  Nop_CheckoutAttribute               Nop_CheckoutAttribute                 @relation(fields: [CheckoutAttributeID], references: [CheckoutAttributeID], onDelete: Cascade, map: "FK_Nop_CheckoutAttributeValue_Nop_CheckoutAttribute")
+  Nop_CheckoutAttribute               Nop_CheckoutAttribute                 @relation(fields: [CheckoutAttributeID], references: [CheckoutAttributeID], onUpdate: NoAction, onDelete: NoAction, map: "FK_Nop_CheckoutAttributeValue_Nop_CheckoutAttribute")
   Nop_CheckoutAttributeValueLocalized Nop_CheckoutAttributeValueLocalized[]
 }
 
@@ -380,8 +1188,8 @@ model Nop_CheckoutAttributeValueLocalized {
   CheckoutAttributeValueID          Int
   LanguageID                        Int
   Name                              String                     @db.NVarChar(100)
-  Nop_CheckoutAttributeValue        Nop_CheckoutAttributeValue @relation(fields: [CheckoutAttributeValueID], references: [CheckoutAttributeValueID], onDelete: Cascade, map: "FK_Nop_CheckoutAttributeValueLocalized_Nop_CheckoutAttributeValue")
-  Nop_Language                      Nop_Language               @relation(fields: [LanguageID], references: [LanguageId], onDelete: Cascade, map: "FK_Nop_CheckoutAttributeValueLocalized_Nop_Language")
+  Nop_CheckoutAttributeValue        Nop_CheckoutAttributeValue @relation(fields: [CheckoutAttributeValueID], references: [CheckoutAttributeValueID], onUpdate: NoAction, onDelete: NoAction, map: "FK_Nop_CheckoutAttributeValueLocalized_Nop_CheckoutAttributeValue")
+  Nop_Language                      Nop_Language               @relation(fields: [LanguageID], references: [LanguageId], onUpdate: NoAction, onDelete: NoAction, map: "FK_Nop_CheckoutAttributeValueLocalized_Nop_Language")
 
   @@unique([CheckoutAttributeValueID, LanguageID], map: "IX_Nop_CheckoutAttributeValueLocalized_Unique1")
 }
@@ -419,7 +1227,7 @@ model Nop_CrossSellProduct {
   CrossSellProductId Int         @id(map: "PK_CrossSellProduct") @default(autoincrement())
   ProductId1         Int
   ProductId2         Int
-  Nop_Product        Nop_Product @relation(fields: [ProductId1], references: [ProductId], onDelete: Cascade, map: "FK_Nop_CrossSellProduct_Nop_Product")
+  Nop_Product        Nop_Product @relation(fields: [ProductId1], references: [ProductId], onUpdate: NoAction, onDelete: NoAction, map: "FK_Nop_CrossSellProduct_Nop_Product")
 
   @@unique([ProductId1, ProductId2], map: "IX_Nop_CrossSellProduct_Unique")
 }
@@ -489,8 +1297,8 @@ model Nop_Customer {
 model Nop_Customer_CustomerRole_Mapping {
   CustomerID       Int
   CustomerRoleID   Int
-  Nop_Customer     Nop_Customer     @relation(fields: [CustomerID], references: [CustomerID], onDelete: Cascade, map: "FK_Nop_Customer_CustomerRole_Mapping_Nop_Customer")
-  Nop_CustomerRole Nop_CustomerRole @relation(fields: [CustomerRoleID], references: [CustomerRoleID], onDelete: Cascade, map: "FK_Nop_Customer_CustomerRole_Mapping_Nop_CustomerRole")
+  Nop_Customer     Nop_Customer     @relation(fields: [CustomerID], references: [CustomerID], onUpdate: NoAction, onDelete: NoAction, map: "FK_Nop_Customer_CustomerRole_Mapping_Nop_Customer")
+  Nop_CustomerRole Nop_CustomerRole @relation(fields: [CustomerRoleID], references: [CustomerRoleID], onUpdate: NoAction, onDelete: NoAction, map: "FK_Nop_Customer_CustomerRole_Mapping_Nop_CustomerRole")
 
   @@id([CustomerID, CustomerRoleID], map: "PK_Nop_Customer_CustomerRole_Mapping")
 }
@@ -509,7 +1317,7 @@ model Nop_CustomerAttribute {
   CustomerId          Int
   Key                 String       @db.NVarChar(100)
   Value               String
-  Nop_Customer        Nop_Customer @relation(fields: [CustomerId], references: [CustomerID], onDelete: Cascade, map: "FK_Nop_CustomerAttribute_Nop_Customer")
+  Nop_Customer        Nop_Customer @relation(fields: [CustomerId], references: [CustomerID], onUpdate: NoAction, onDelete: NoAction, map: "FK_Nop_CustomerAttribute_Nop_Customer")
 
   @@unique([CustomerId, Key], map: "IX_Nop_CustomerAttribute_Unique")
   @@index([CustomerId], map: "IX_Nop_CustomerAttribute_CustomerId")
@@ -532,8 +1340,8 @@ model Nop_CustomerRole {
 model Nop_CustomerRole_Discount_Mapping {
   CustomerRoleID   Int
   DiscountID       Int
-  Nop_CustomerRole Nop_CustomerRole @relation(fields: [CustomerRoleID], references: [CustomerRoleID], onDelete: Cascade, map: "FK_Nop_CustomerRole_Discount_Mapping_Nop_CustomerRole")
-  Nop_Discount     Nop_Discount     @relation(fields: [DiscountID], references: [DiscountID], onDelete: Cascade, map: "FK_Nop_CustomerRole_Discount_Mapping_Nop_Discount")
+  Nop_CustomerRole Nop_CustomerRole @relation(fields: [CustomerRoleID], references: [CustomerRoleID], onUpdate: NoAction, onDelete: NoAction, map: "FK_Nop_CustomerRole_Discount_Mapping_Nop_CustomerRole")
+  Nop_Discount     Nop_Discount     @relation(fields: [DiscountID], references: [DiscountID], onUpdate: NoAction, onDelete: NoAction, map: "FK_Nop_CustomerRole_Discount_Mapping_Nop_Discount")
 
   @@id([CustomerRoleID, DiscountID], map: "PK_Nop_CustomerRole_Discount_Mapping")
 }
@@ -543,8 +1351,8 @@ model Nop_CustomerRole_ProductPrice {
   CustomerRoleID             Int
   ProductVariantID           Int
   Price                      Float              @db.Money
-  Nop_CustomerRole           Nop_CustomerRole   @relation(fields: [CustomerRoleID], references: [CustomerRoleID], onDelete: Cascade, map: "FK_Nop_CustomerRole_ProductPrice_Nop_CustomerRole")
-  Nop_ProductVariant         Nop_ProductVariant @relation(fields: [ProductVariantID], references: [ProductVariantId], onDelete: Cascade, map: "FK_Nop_CustomerRole_ProductPrice_Nop_ProductVariant")
+  Nop_CustomerRole           Nop_CustomerRole   @relation(fields: [CustomerRoleID], references: [CustomerRoleID], onUpdate: NoAction, onDelete: NoAction, map: "FK_Nop_CustomerRole_ProductPrice_Nop_CustomerRole")
+  Nop_ProductVariant         Nop_ProductVariant @relation(fields: [ProductVariantID], references: [ProductVariantId], onUpdate: NoAction, onDelete: NoAction, map: "FK_Nop_CustomerRole_ProductPrice_Nop_ProductVariant")
 }
 
 model Nop_CustomerSession {
@@ -585,8 +1393,8 @@ model Nop_Discount {
 model Nop_DiscountRestriction {
   ProductVariantID   Int
   DiscountID         Int
-  Nop_Discount       Nop_Discount       @relation(fields: [DiscountID], references: [DiscountID], onDelete: Cascade, map: "FK_Nop_DiscountRestriction_Nop_Discount")
-  Nop_ProductVariant Nop_ProductVariant @relation(fields: [ProductVariantID], references: [ProductVariantId], onDelete: Cascade, map: "FK_Nop_DiscountRestriction_Nop_ProductVariant")
+  Nop_Discount       Nop_Discount       @relation(fields: [DiscountID], references: [DiscountID], onUpdate: NoAction, onDelete: NoAction, map: "FK_Nop_DiscountRestriction_Nop_Discount")
+  Nop_ProductVariant Nop_ProductVariant @relation(fields: [ProductVariantID], references: [ProductVariantId], onUpdate: NoAction, onDelete: NoAction, map: "FK_Nop_DiscountRestriction_Nop_ProductVariant")
 
   @@id([ProductVariantID, DiscountID], map: "Nop_DiscountRestriction_PK")
 }
@@ -597,9 +1405,9 @@ model Nop_DiscountUsageHistory {
   CustomerID             Int
   OrderID                Int
   CreatedOn              DateTime     @db.DateTime
-  Nop_Customer           Nop_Customer @relation(fields: [CustomerID], references: [CustomerID], onDelete: Cascade, map: "FK_Nop_DiscountUsageHistory_Nop_Customer")
-  Nop_Discount           Nop_Discount @relation(fields: [DiscountID], references: [DiscountID], onDelete: Cascade, map: "FK_Nop_DiscountUsageHistory_Nop_Discount")
-  Nop_Order              Nop_Order    @relation(fields: [OrderID], references: [OrderID], onDelete: Cascade, map: "FK_Nop_DiscountUsageHistory_Nop_Order")
+  Nop_Customer           Nop_Customer @relation(fields: [CustomerID], references: [CustomerID], onUpdate: NoAction, onDelete: NoAction, map: "FK_Nop_DiscountUsageHistory_Nop_Customer")
+  Nop_Discount           Nop_Discount @relation(fields: [DiscountID], references: [DiscountID], onUpdate: NoAction, onDelete: NoAction, map: "FK_Nop_DiscountUsageHistory_Nop_Discount")
+  Nop_Order              Nop_Order    @relation(fields: [OrderID], references: [OrderID], onUpdate: NoAction, onDelete: NoAction, map: "FK_Nop_DiscountUsageHistory_Nop_Order")
 }
 
 model Nop_Download {
@@ -649,7 +1457,7 @@ model Nop_Forums_Forum {
   DisplayOrder     Int
   CreatedOn        DateTime           @db.DateTime
   UpdatedOn        DateTime           @db.DateTime
-  Nop_Forums_Group Nop_Forums_Group   @relation(fields: [ForumGroupID], references: [ForumGroupID], onDelete: Cascade, map: "FK_Nop_Forums_Forum_Nop_Forums_Group")
+  Nop_Forums_Group Nop_Forums_Group   @relation(fields: [ForumGroupID], references: [ForumGroupID], onUpdate: NoAction, onDelete: NoAction, map: "FK_Nop_Forums_Forum_Nop_Forums_Group")
   Nop_Forums_Topic Nop_Forums_Topic[]
 
   @@index([DisplayOrder], map: "IX_Nop_Forums_Forum_DisplayOrder")
@@ -676,7 +1484,7 @@ model Nop_Forums_Post {
   IPAddress        String           @db.NVarChar(100)
   CreatedOn        DateTime         @db.DateTime
   UpdatedOn        DateTime         @db.DateTime
-  Nop_Forums_Topic Nop_Forums_Topic @relation(fields: [TopicID], references: [TopicID], onDelete: Cascade, map: "FK_Nop_Forums_Post_Nop_Forums_Topic")
+  Nop_Forums_Topic Nop_Forums_Topic @relation(fields: [TopicID], references: [TopicID], onUpdate: NoAction, onDelete: NoAction, map: "FK_Nop_Forums_Post_Nop_Forums_Topic")
 
   @@index([TopicID], map: "IX_Nop_Forums_Post_TopicID")
   @@index([UserID], map: "IX_Nop_Forums_Post_UserID")
@@ -720,7 +1528,7 @@ model Nop_Forums_Topic {
   CreatedOn        DateTime          @db.DateTime
   UpdatedOn        DateTime          @db.DateTime
   Nop_Forums_Post  Nop_Forums_Post[]
-  Nop_Forums_Forum Nop_Forums_Forum  @relation(fields: [ForumID], references: [ForumID], onDelete: Cascade, map: "FK_Nop_Forums_Topic_Nop_Forums_Forum")
+  Nop_Forums_Forum Nop_Forums_Forum  @relation(fields: [ForumID], references: [ForumID], onUpdate: NoAction, onDelete: NoAction, map: "FK_Nop_Forums_Topic_Nop_Forums_Forum")
 
   @@index([ForumID], map: "IX_Nop_Forums_Topic_ForumID")
 }
@@ -738,7 +1546,7 @@ model Nop_GiftCard {
   Message                        String                     @db.NVarChar(4000)
   IsRecipientNotified            Boolean                    @default(false, map: "DF_Nop_GiftCard_IsRecipientNotified")
   CreatedOn                      DateTime                   @db.DateTime
-  Nop_OrderProductVariant        Nop_OrderProductVariant    @relation(fields: [PurchasedOrderProductVariantID], references: [OrderProductVariantID], onDelete: Cascade, map: "FK_Nop_GiftCard_Nop_OrderProductVariant")
+  Nop_OrderProductVariant        Nop_OrderProductVariant    @relation(fields: [PurchasedOrderProductVariantID], references: [OrderProductVariantID], onUpdate: NoAction, onDelete: NoAction, map: "FK_Nop_GiftCard_Nop_OrderProductVariant")
   Nop_GiftCardUsageHistory       Nop_GiftCardUsageHistory[]
 }
 
@@ -750,8 +1558,8 @@ model Nop_GiftCardUsageHistory {
   UsedValue                   Float        @db.Money
   UsedValueInCustomerCurrency Float        @default(0, map: "DF_Nop_GiftCardUsageHistory_UsedValueInCustomerCurrency") @db.Money
   CreatedOn                   DateTime     @db.DateTime
-  Nop_Customer                Nop_Customer @relation(fields: [CustomerID], references: [CustomerID], onDelete: Cascade, map: "FK_Nop_GiftCardUsageHistory_Nop_Customer")
-  Nop_GiftCard                Nop_GiftCard @relation(fields: [GiftCardID], references: [GiftCardID], onDelete: Cascade, map: "FK_Nop_GiftCardUsageHistory_Nop_GiftCard")
+  Nop_Customer                Nop_Customer @relation(fields: [CustomerID], references: [CustomerID], onUpdate: NoAction, onDelete: NoAction, map: "FK_Nop_GiftCardUsageHistory_Nop_Customer")
+  Nop_GiftCard                Nop_GiftCard @relation(fields: [GiftCardID], references: [GiftCardID], onUpdate: NoAction, onDelete: NoAction, map: "FK_Nop_GiftCardUsageHistory_Nop_GiftCard")
 }
 
 model Nop_Language {
@@ -786,7 +1594,7 @@ model Nop_LocaleStringResource {
   LanguageID             Int
   ResourceName           String       @db.NVarChar(200)
   ResourceValue          String       @db.NVarChar(Max)
-  Nop_Language           Nop_Language @relation(fields: [LanguageID], references: [LanguageId], onDelete: Cascade, map: "FK_Nop_LocaleStringResource_Nop_Language")
+  Nop_Language           Nop_Language @relation(fields: [LanguageID], references: [LanguageId], onUpdate: NoAction, onDelete: NoAction, map: "FK_Nop_LocaleStringResource_Nop_Language")
 
   @@unique([LanguageID, ResourceName], map: "IX_Nop_LocaleStringResource")
   @@index([LanguageID], map: "IX_Nop_LocaleStringResource_LanguageID")
@@ -841,8 +1649,8 @@ model Nop_ManufacturerLocalized {
   MetaDescription         String           @db.NVarChar(4000)
   MetaTitle               String           @db.NVarChar(400)
   SEName                  String           @db.NVarChar(100)
-  Nop_Language            Nop_Language     @relation(fields: [LanguageID], references: [LanguageId], onDelete: Cascade, map: "FK_Nop_ManufacturerLocalized_Nop_Language")
-  Nop_Manufacturer        Nop_Manufacturer @relation(fields: [ManufacturerID], references: [ManufacturerID], onDelete: Cascade, map: "FK_Nop_ManufacturerLocalized_Nop_Manufacturer")
+  Nop_Language            Nop_Language     @relation(fields: [LanguageID], references: [LanguageId], onUpdate: NoAction, onDelete: NoAction, map: "FK_Nop_ManufacturerLocalized_Nop_Language")
+  Nop_Manufacturer        Nop_Manufacturer @relation(fields: [ManufacturerID], references: [ManufacturerID], onUpdate: NoAction, onDelete: NoAction, map: "FK_Nop_ManufacturerLocalized_Nop_Manufacturer")
 
   @@unique([ManufacturerID, LanguageID], map: "IX_Nop_ManufacturerLocalized_Unique1")
 }
@@ -890,8 +1698,8 @@ model Nop_MessageTemplateLocalized {
   Body                       String              @db.NVarChar(Max)
   IsActive                   Boolean             @default(true, map: "DF_Nop_MessageTemplateLocalized_IsActive")
   EmailAccountId             Int                 @default(0, map: "DF_Nop_MessageTemplateLocalized_EmailAccountId")
-  Nop_Language               Nop_Language        @relation(fields: [LanguageID], references: [LanguageId], onDelete: Cascade, map: "FK_Nop_MessageTemplateLocalized_Nop_Language")
-  Nop_MessageTemplate        Nop_MessageTemplate @relation(fields: [MessageTemplateID], references: [MessageTemplateID], onDelete: Cascade, map: "FK_Nop_MessageTemplateLocalized_Nop_MessageTemplate")
+  Nop_Language               Nop_Language        @relation(fields: [LanguageID], references: [LanguageId], onUpdate: NoAction, onDelete: NoAction, map: "FK_Nop_MessageTemplateLocalized_Nop_Language")
+  Nop_MessageTemplate        Nop_MessageTemplate @relation(fields: [MessageTemplateID], references: [MessageTemplateID], onUpdate: NoAction, onDelete: NoAction, map: "FK_Nop_MessageTemplateLocalized_Nop_MessageTemplate")
 
   @@unique([LanguageID, MessageTemplateID], map: "IX_Nop_MessageTemplateLocalized")
   @@index([LanguageID], map: "IX_Nop_MessageTemplateLocalized_LanguageID")
@@ -906,7 +1714,7 @@ model Nop_News {
   Published       Boolean
   AllowComments   Boolean
   CreatedOn       DateTime          @db.DateTime
-  Nop_Language    Nop_Language      @relation(fields: [LanguageID], references: [LanguageId], onDelete: Cascade, map: "FK_Nop_News_Nop_Language")
+  Nop_Language    Nop_Language      @relation(fields: [LanguageID], references: [LanguageId], onUpdate: NoAction, onDelete: NoAction, map: "FK_Nop_News_Nop_Language")
   Nop_NewsComment Nop_NewsComment[]
 
   @@index([LanguageID], map: "IX_Nop_News_LanguageID")
@@ -920,7 +1728,7 @@ model Nop_NewsComment {
   Title         String
   Comment       String   @db.NVarChar(Max)
   CreatedOn     DateTime @db.DateTime
-  Nop_News      Nop_News @relation(fields: [NewsID], references: [NewsID], onDelete: Cascade, map: "FK_Nop_NewsComment_Nop_News")
+  Nop_News      Nop_News @relation(fields: [NewsID], references: [NewsID], onUpdate: NoAction, onDelete: NoAction, map: "FK_Nop_NewsComment_Nop_News")
 
   @@index([NewsID], map: "IX_Nop_NewsComment_NewsID")
 }
@@ -1043,7 +1851,7 @@ model Nop_OrderNote {
   Note              String    @db.NVarChar(4000)
   DisplayToCustomer Boolean   @default(false, map: "DF_Nop_OrderNote_DisplayToCustomer")
   CreatedOn         DateTime  @db.DateTime
-  Nop_Order         Nop_Order @relation(fields: [OrderID], references: [OrderID], onDelete: Cascade, map: "FK_Nop_OrderNote_Nop_Order")
+  Nop_Order         Nop_Order @relation(fields: [OrderID], references: [OrderID], onUpdate: NoAction, onDelete: NoAction, map: "FK_Nop_OrderNote_Nop_Order")
 
   @@index([OrderID], map: "IX_Nop_OrderNote_OrderID")
 }
@@ -1070,7 +1878,7 @@ model Nop_OrderProductVariant {
   IsDownloadActivated                Boolean             @default(false, map: "DF_Nop_OrderProductVariant_IsDownloadActivated")
   LicenseDownloadID                  Int                 @default(0, map: "DF_Nop_OrderProductVariant_LicenseDownloadID")
   Nop_GiftCard                       Nop_GiftCard[]
-  Nop_Order                          Nop_Order           @relation(fields: [OrderID], references: [OrderID], onDelete: Cascade, map: "FK_Nop_OrderProductVariant_Nop_Order")
+  Nop_Order                          Nop_Order           @relation(fields: [OrderID], references: [OrderID], onUpdate: NoAction, onDelete: NoAction, map: "FK_Nop_OrderProductVariant_Nop_Order")
   Nop_ProductVariant                 Nop_ProductVariant  @relation(fields: [ProductVariantID], references: [ProductVariantId], onUpdate: NoAction, map: "FK_Nop_OrderProductVariant_Nop_ProductVariant")
   Nop_ReturnRequest                  Nop_ReturnRequest[]
 
@@ -1094,8 +1902,8 @@ model Nop_PaymentMethod {
 model Nop_PaymentMethod_RestrictedCountries {
   PaymentMethodID   Int
   CountryID         Int
-  Nop_Country       Nop_Country       @relation(fields: [CountryID], references: [CountryID], onDelete: Cascade, map: "FK_Nop_PaymentMethod_RestrictedCountries_Nop_Country")
-  Nop_PaymentMethod Nop_PaymentMethod @relation(fields: [PaymentMethodID], references: [PaymentMethodID], onDelete: Cascade, map: "FK_Nop_PaymentMethod_RestrictedCountries_Nop_PaymentMethod")
+  Nop_Country       Nop_Country       @relation(fields: [CountryID], references: [CountryID], onUpdate: NoAction, onDelete: NoAction, map: "FK_Nop_PaymentMethod_RestrictedCountries_Nop_Country")
+  Nop_PaymentMethod Nop_PaymentMethod @relation(fields: [PaymentMethodID], references: [PaymentMethodID], onUpdate: NoAction, onDelete: NoAction, map: "FK_Nop_PaymentMethod_RestrictedCountries_Nop_PaymentMethod")
 
   @@id([PaymentMethodID, CountryID], map: "PK_Nop_PaymentMethod_RestrictedCountries")
 }
@@ -1118,7 +1926,7 @@ model Nop_Poll {
   DisplayOrder   Int
   StartDate      DateTime?        @db.DateTime
   EndDate        DateTime?        @db.DateTime
-  Nop_Language   Nop_Language     @relation(fields: [LanguageID], references: [LanguageId], onDelete: Cascade, map: "FK_Nop_Poll_Nop_Language")
+  Nop_Language   Nop_Language     @relation(fields: [LanguageID], references: [LanguageId], onUpdate: NoAction, onDelete: NoAction, map: "FK_Nop_Poll_Nop_Language")
   Nop_PollAnswer Nop_PollAnswer[]
 }
 
@@ -1128,7 +1936,7 @@ model Nop_PollAnswer {
   Name                 String                 @db.NVarChar(400)
   Count                Int
   DisplayOrder         Int
-  Nop_Poll             Nop_Poll               @relation(fields: [PollID], references: [PollID], onDelete: Cascade, map: "FK_Nop_PollAnswer_Nop_Poll")
+  Nop_Poll             Nop_Poll               @relation(fields: [PollID], references: [PollID], onUpdate: NoAction, onDelete: NoAction, map: "FK_Nop_PollAnswer_Nop_Poll")
   Nop_PollVotingRecord Nop_PollVotingRecord[]
 
   @@index([PollID], map: "IX_Nop_PollAnswer_PollID")
@@ -1138,8 +1946,8 @@ model Nop_PollVotingRecord {
   PollVotingRecordID Int            @id(map: "PK_Nop_PollVotingRecord") @default(autoincrement())
   PollAnswerID       Int
   CustomerID         Int
-  Nop_Customer       Nop_Customer   @relation(fields: [CustomerID], references: [CustomerID], onDelete: Cascade, map: "FK_Nop_PollVotingRecord_Nop_Customer")
-  Nop_PollAnswer     Nop_PollAnswer @relation(fields: [PollAnswerID], references: [PollAnswerID], onDelete: Cascade, map: "FK_Nop_PollVotingRecord_Nop_PollAnswer")
+  Nop_Customer       Nop_Customer   @relation(fields: [CustomerID], references: [CustomerID], onUpdate: NoAction, onDelete: NoAction, map: "FK_Nop_PollVotingRecord_Nop_Customer")
+  Nop_PollAnswer     Nop_PollAnswer @relation(fields: [PollAnswerID], references: [PollAnswerID], onUpdate: NoAction, onDelete: NoAction, map: "FK_Nop_PollVotingRecord_Nop_PollAnswer")
 }
 
 model Nop_Pricelist {
@@ -1205,8 +2013,8 @@ model Nop_Product_Category_Mapping {
   CategoryID        Int
   IsFeaturedProduct Boolean
   DisplayOrder      Int
-  Nop_Category      Nop_Category @relation(fields: [CategoryID], references: [CategoryID], onDelete: Cascade, map: "FK_Nop_Product_Category_Mapping_Nop_Category1")
-  Nop_Product       Nop_Product  @relation(fields: [ProductID], references: [ProductId], onDelete: Cascade, map: "FK_Nop_Product_Category_Mapping_Nop_Product1")
+  Nop_Category      Nop_Category @relation(fields: [CategoryID], references: [CategoryID], onUpdate: NoAction, onDelete: NoAction, map: "FK_Nop_Product_Category_Mapping_Nop_Category1")
+  Nop_Product       Nop_Product  @relation(fields: [ProductID], references: [ProductId], onUpdate: NoAction, onDelete: NoAction, map: "FK_Nop_Product_Category_Mapping_Nop_Product1")
 
   @@unique([ProductID, CategoryID], map: "IX_Nop_Product_Category_Mapping_Unique")
 }
@@ -1217,8 +2025,8 @@ model Nop_Product_Manufacturer_Mapping {
   ManufacturerID        Int
   IsFeaturedProduct     Boolean
   DisplayOrder          Int
-  Nop_Manufacturer      Nop_Manufacturer @relation(fields: [ManufacturerID], references: [ManufacturerID], onDelete: Cascade, map: "FK_Nop_Product_Manufacturer_Mapping_Nop_Manufacturer1")
-  Nop_Product           Nop_Product      @relation(fields: [ProductID], references: [ProductId], onDelete: Cascade, map: "FK_Nop_Product_Manufacturer_Mapping_Nop_Product1")
+  Nop_Manufacturer      Nop_Manufacturer @relation(fields: [ManufacturerID], references: [ManufacturerID], onUpdate: NoAction, onDelete: NoAction, map: "FK_Nop_Product_Manufacturer_Mapping_Nop_Manufacturer1")
+  Nop_Product           Nop_Product      @relation(fields: [ProductID], references: [ProductId], onUpdate: NoAction, onDelete: NoAction, map: "FK_Nop_Product_Manufacturer_Mapping_Nop_Product1")
 
   @@unique([ProductID, ManufacturerID], map: "IX_Nop_Product_Manufacturer_Mapping_Unique")
 }
@@ -1230,8 +2038,8 @@ model Nop_Product_SpecificationAttribute_Mapping {
   AllowFiltering                   Boolean                          @default(false, map: "DF_Nop_Product_SpecificationAttribute_Mapping_AllowFiltering")
   ShowOnProductPage                Boolean                          @default(true, map: "DF_Nop_Product_SpecificationAttribute_Mapping_ShowOnProductPage")
   DisplayOrder                     Int                              @default(1, map: "DF_Nop_Product_SpecificationAttribute_Mapping_DisplayOrder")
-  Nop_Product                      Nop_Product                      @relation(fields: [ProductID], references: [ProductId], onDelete: Cascade, map: "FK_Nop_Product_SpecificationAttribute_Mapping_Nop_Product")
-  Nop_SpecificationAttributeOption Nop_SpecificationAttributeOption @relation(fields: [SpecificationAttributeOptionID], references: [SpecificationAttributeOptionID], onDelete: Cascade, map: "FK_Nop_Product_SpecificationAttribute_Mapping_Nop_SpecificationAttributeOption")
+  Nop_Product                      Nop_Product                      @relation(fields: [ProductID], references: [ProductId], onUpdate: NoAction, onDelete: NoAction, map: "FK_Nop_Product_SpecificationAttribute_Mapping_Nop_Product")
+  Nop_SpecificationAttributeOption Nop_SpecificationAttributeOption @relation(fields: [SpecificationAttributeOptionID], references: [SpecificationAttributeOptionID], onUpdate: NoAction, onDelete: NoAction, map: "FK_Nop_Product_SpecificationAttribute_Mapping_Nop_SpecificationAttributeOption")
 }
 
 model Nop_ProductAttribute {
@@ -1248,8 +2056,8 @@ model Nop_ProductAttributeLocalized {
   LanguageID                  Int
   Name                        String               @db.NVarChar(100)
   Description                 String               @db.NVarChar(400)
-  Nop_Language                Nop_Language         @relation(fields: [LanguageID], references: [LanguageId], onDelete: Cascade, map: "FK_Nop_ProductAttributeLocalized_Nop_Language")
-  Nop_ProductAttribute        Nop_ProductAttribute @relation(fields: [ProductAttributeID], references: [ProductAttributeID], onDelete: Cascade, map: "FK_Nop_ProductAttributeLocalized_Nop_ProductAttribute")
+  Nop_Language                Nop_Language         @relation(fields: [LanguageID], references: [LanguageId], onUpdate: NoAction, onDelete: NoAction, map: "FK_Nop_ProductAttributeLocalized_Nop_Language")
+  Nop_ProductAttribute        Nop_ProductAttribute @relation(fields: [ProductAttributeID], references: [ProductAttributeID], onUpdate: NoAction, onDelete: NoAction, map: "FK_Nop_ProductAttributeLocalized_Nop_ProductAttribute")
 
   @@unique([ProductAttributeID, LanguageID], map: "IX_Nop_ProductAttributeLocalized_Unique1")
 }
@@ -1265,8 +2073,8 @@ model Nop_ProductLocalized {
   MetaDescription    String       @db.NVarChar(4000)
   MetaTitle          String       @db.NVarChar(400)
   SEName             String       @db.NVarChar(100)
-  Nop_Language       Nop_Language @relation(fields: [LanguageID], references: [LanguageId], onDelete: Cascade, map: "FK_Nop_ProductLocalized_Nop_Language")
-  Nop_Product        Nop_Product  @relation(fields: [ProductID], references: [ProductId], onDelete: Cascade, map: "FK_Nop_ProductLocalized_Nop_Product")
+  Nop_Language       Nop_Language @relation(fields: [LanguageID], references: [LanguageId], onUpdate: NoAction, onDelete: NoAction, map: "FK_Nop_ProductLocalized_Nop_Language")
+  Nop_Product        Nop_Product  @relation(fields: [ProductID], references: [ProductId], onUpdate: NoAction, onDelete: NoAction, map: "FK_Nop_ProductLocalized_Nop_Product")
 
   @@unique([ProductID, LanguageID], map: "IX_Nop_ProductLocalized_Unique1")
 }
@@ -1276,8 +2084,8 @@ model Nop_ProductPicture {
   ProductID        Int
   PictureID        Int
   DisplayOrder     Int
-  Nop_Picture      Nop_Picture @relation(fields: [PictureID], references: [PictureID], onDelete: Cascade, map: "FK_Nop_ProductPicture_Nop_Picture")
-  Nop_Product      Nop_Product @relation(fields: [ProductID], references: [ProductId], onDelete: Cascade, map: "FK_Nop_ProductPicture_Nop_Product")
+  Nop_Picture      Nop_Picture @relation(fields: [PictureID], references: [PictureID], onUpdate: NoAction, onDelete: NoAction, map: "FK_Nop_ProductPicture_Nop_Picture")
+  Nop_Product      Nop_Product @relation(fields: [ProductID], references: [ProductId], onUpdate: NoAction, onDelete: NoAction, map: "FK_Nop_ProductPicture_Nop_Product")
 }
 
 model Nop_ProductRating {
@@ -1286,8 +2094,8 @@ model Nop_ProductRating {
   CustomerID      Int
   Rating          Int
   RatedOn         DateTime     @db.DateTime
-  Nop_Customer    Nop_Customer @relation(fields: [CustomerID], references: [CustomerID], onDelete: Cascade, map: "FK_Nop_ProductRating_Nop_Customer")
-  Nop_Product     Nop_Product  @relation(fields: [ProductID], references: [ProductId], onDelete: Cascade, map: "FK_Nop_ProductRating_Nop_Product")
+  Nop_Customer    Nop_Customer @relation(fields: [CustomerID], references: [CustomerID], onUpdate: NoAction, onDelete: NoAction, map: "FK_Nop_ProductRating_Nop_Customer")
+  Nop_Product     Nop_Product  @relation(fields: [ProductID], references: [ProductId], onUpdate: NoAction, onDelete: NoAction, map: "FK_Nop_ProductRating_Nop_Product")
 }
 
 model Nop_ProductReview {
@@ -1302,8 +2110,8 @@ model Nop_ProductReview {
   HelpfulNoTotal               Int
   IsApproved                   Boolean
   CreatedOn                    DateTime                       @db.DateTime
-  Nop_Customer                 Nop_Customer                   @relation(fields: [CustomerID], references: [CustomerID], onDelete: Cascade, map: "FK_Nop_ProductReview_Nop_Customer")
-  Nop_Product                  Nop_Product                    @relation(fields: [ProductID], references: [ProductId], onDelete: Cascade, map: "FK_Nop_ProductReview_Nop_Product1")
+  Nop_Customer                 Nop_Customer                   @relation(fields: [CustomerID], references: [CustomerID], onUpdate: NoAction, onDelete: NoAction, map: "FK_Nop_ProductReview_Nop_Customer")
+  Nop_Product                  Nop_Product                    @relation(fields: [ProductID], references: [ProductId], onUpdate: NoAction, onDelete: NoAction, map: "FK_Nop_ProductReview_Nop_Product1")
   Nop_ProductReviewHelpfulness Nop_ProductReviewHelpfulness[]
 
   @@index([ProductID], map: "IX_Nop_ProductReview_ProductID")
@@ -1314,7 +2122,7 @@ model Nop_ProductReviewHelpfulness {
   ProductReviewID            Int
   CustomerID                 Int
   WasHelpful                 Boolean
-  Nop_ProductReview          Nop_ProductReview @relation(fields: [ProductReviewID], references: [ProductReviewID], onDelete: Cascade, map: "FK_Nop_ProductReviewHelpfulness_Nop_ProductReview")
+  Nop_ProductReview          Nop_ProductReview @relation(fields: [ProductReviewID], references: [ProductReviewID], onUpdate: NoAction, onDelete: NoAction, map: "FK_Nop_ProductReviewHelpfulness_Nop_ProductReview")
 }
 
 model Nop_ProductTag {
@@ -1327,8 +2135,8 @@ model Nop_ProductTag {
 model Nop_ProductTag_Product_Mapping {
   ProductTagID   Int
   ProductID      Int
-  Nop_Product    Nop_Product    @relation(fields: [ProductID], references: [ProductId], onDelete: Cascade, map: "FK_Nop_ProductTag_Product_Mapping_Nop_Product")
-  Nop_ProductTag Nop_ProductTag @relation(fields: [ProductTagID], references: [ProductTagID], onDelete: Cascade, map: "FK_Nop_ProductTag_Product_Mapping_Nop_ProductTag")
+  Nop_Product    Nop_Product    @relation(fields: [ProductID], references: [ProductId], onUpdate: NoAction, onDelete: NoAction, map: "FK_Nop_ProductTag_Product_Mapping_Nop_Product")
+  Nop_ProductTag Nop_ProductTag @relation(fields: [ProductTagID], references: [ProductTagID], onUpdate: NoAction, onDelete: NoAction, map: "FK_Nop_ProductTag_Product_Mapping_Nop_ProductTag")
 
   @@id([ProductTagID, ProductID], map: "Nop_ProductTag_Product_Mapping_PK")
 }
@@ -1406,7 +2214,7 @@ model Nop_ProductVariant {
   Nop_CustomerRole_ProductPrice               Nop_CustomerRole_ProductPrice[]
   Nop_DiscountRestriction                     Nop_DiscountRestriction[]
   Nop_OrderProductVariant                     Nop_OrderProductVariant[]
-  Nop_Product                                 Nop_Product                                   @relation(fields: [ProductID], references: [ProductId], onDelete: Cascade, map: "FK_Nop_ProductVariant_Nop_Product1")
+  Nop_Product                                 Nop_Product                                   @relation(fields: [ProductID], references: [ProductId], onUpdate: NoAction, onDelete: NoAction, map: "FK_Nop_ProductVariant_Nop_Product1")
   Nop_ProductVariant_Discount_Mapping         Nop_ProductVariant_Discount_Mapping[]
   Nop_ProductVariant_Pricelist_Mapping        Nop_ProductVariant_Pricelist_Mapping[]
   Nop_ProductVariant_ProductAttribute_Mapping Nop_ProductVariant_ProductAttribute_Mapping[]
@@ -1422,8 +2230,8 @@ model Nop_ProductVariant {
 model Nop_ProductVariant_Discount_Mapping {
   ProductVariantID   Int
   DiscountID         Int
-  Nop_Discount       Nop_Discount       @relation(fields: [DiscountID], references: [DiscountID], onDelete: Cascade, map: "FK_Nop_ProductVariant_Discount_Mapping_Nop_Discount")
-  Nop_ProductVariant Nop_ProductVariant @relation(fields: [ProductVariantID], references: [ProductVariantId], onDelete: Cascade, map: "FK_Nop_ProductVariant_Discount_Mapping_Nop_ProductVariant")
+  Nop_Discount       Nop_Discount       @relation(fields: [DiscountID], references: [DiscountID], onUpdate: NoAction, onDelete: NoAction, map: "FK_Nop_ProductVariant_Discount_Mapping_Nop_Discount")
+  Nop_ProductVariant Nop_ProductVariant @relation(fields: [ProductVariantID], references: [ProductVariantId], onUpdate: NoAction, onDelete: NoAction, map: "FK_Nop_ProductVariant_Discount_Mapping_Nop_ProductVariant")
 
   @@id([ProductVariantID, DiscountID], map: "PKNop_ProductVariant_Discount_Mapping")
 }
@@ -1435,8 +2243,8 @@ model Nop_ProductVariant_Pricelist_Mapping {
   PriceAdjustmentTypeID     Int                @default(0, map: "DF_Nop_ProductVariant_Pricelist_Mapping_PriceAdjustmentTypeID")
   PriceAdjustment           Float              @default(0, map: "DF_Nop_ProductVariant_Pricelist_Mapping_PriceAdjustment") @db.Money
   UpdatedOn                 DateTime           @db.DateTime
-  Nop_Pricelist             Nop_Pricelist      @relation(fields: [PricelistID], references: [PricelistID], onDelete: Cascade, map: "FK_Nop_ProductVariant_Pricelist_Mapping_Nop_Pricelist")
-  Nop_ProductVariant        Nop_ProductVariant @relation(fields: [ProductVariantID], references: [ProductVariantId], onDelete: Cascade, map: "FK_Nop_ProductVariant_Pricelist_Mapping_Nop_ProductVariant")
+  Nop_Pricelist             Nop_Pricelist      @relation(fields: [PricelistID], references: [PricelistID], onUpdate: NoAction, onDelete: NoAction, map: "FK_Nop_ProductVariant_Pricelist_Mapping_Nop_Pricelist")
+  Nop_ProductVariant        Nop_ProductVariant @relation(fields: [ProductVariantID], references: [ProductVariantId], onUpdate: NoAction, onDelete: NoAction, map: "FK_Nop_ProductVariant_Pricelist_Mapping_Nop_ProductVariant")
 }
 
 model Nop_ProductVariant_ProductAttribute_Mapping {
@@ -1447,8 +2255,8 @@ model Nop_ProductVariant_ProductAttribute_Mapping {
   IsRequired                       Boolean
   AttributeControlTypeID           Int                                @default(1, map: "DF_Nop_ProductVariant_ProductAttribute_Mapping_ControlTypeID")
   DisplayOrder                     Int
-  Nop_ProductAttribute             Nop_ProductAttribute               @relation(fields: [ProductAttributeID], references: [ProductAttributeID], onDelete: Cascade, map: "FK_Nop_ProductVariant_ProductAttribute_Mapping_Nop_ProductAttribute")
-  Nop_ProductVariant               Nop_ProductVariant                 @relation(fields: [ProductVariantID], references: [ProductVariantId], onDelete: Cascade, map: "FK_Nop_ProductVariant_ProductAttribute_Mapping_Nop_ProductVariant")
+  Nop_ProductAttribute             Nop_ProductAttribute               @relation(fields: [ProductAttributeID], references: [ProductAttributeID], onUpdate: NoAction, onDelete: NoAction, map: "FK_Nop_ProductVariant_ProductAttribute_Mapping_Nop_ProductAttribute")
+  Nop_ProductVariant               Nop_ProductVariant                 @relation(fields: [ProductVariantID], references: [ProductVariantId], onUpdate: NoAction, onDelete: NoAction, map: "FK_Nop_ProductVariant_ProductAttribute_Mapping_Nop_ProductVariant")
   Nop_ProductVariantAttributeValue Nop_ProductVariantAttributeValue[]
 
   @@index([ProductVariantID], map: "IX_Nop_ProductVariant_ProductAttribute_Mapping_ProductVariantID")
@@ -1460,7 +2268,7 @@ model Nop_ProductVariantAttributeCombination {
   AttributesXML                        String             @db.Xml
   StockQuantity                        Int
   AllowOutOfStockOrders                Boolean
-  Nop_ProductVariant                   Nop_ProductVariant @relation(fields: [ProductVariantID], references: [ProductVariantId], onDelete: Cascade, map: "FK_Nop_ProductVariantAttributeCombination_Nop_ProductVariant")
+  Nop_ProductVariant                   Nop_ProductVariant @relation(fields: [ProductVariantID], references: [ProductVariantId], onUpdate: NoAction, onDelete: NoAction, map: "FK_Nop_ProductVariantAttributeCombination_Nop_ProductVariant")
 }
 
 model Nop_ProductVariantAttributeValue {
@@ -1471,7 +2279,7 @@ model Nop_ProductVariantAttributeValue {
   WeightAdjustment                            Decimal                                     @default(0, map: "DF_Nop_ProductVariantAttributeValue_WeightAdjustment") @db.Decimal(18, 4)
   IsPreSelected                               Boolean                                     @default(false, map: "DF_Nop_ProductVariantAttributeValue_IsPreSelected")
   DisplayOrder                                Int
-  Nop_ProductVariant_ProductAttribute_Mapping Nop_ProductVariant_ProductAttribute_Mapping @relation(fields: [ProductVariantAttributeID], references: [ProductVariantAttributeID], onDelete: Cascade, map: "FK_Nop_ProductVariantAttributeValue_Nop_ProductVariant_ProductAttribute_Mapping")
+  Nop_ProductVariant_ProductAttribute_Mapping Nop_ProductVariant_ProductAttribute_Mapping @relation(fields: [ProductVariantAttributeID], references: [ProductVariantAttributeID], onUpdate: NoAction, onDelete: NoAction, map: "FK_Nop_ProductVariantAttributeValue_Nop_ProductVariant_ProductAttribute_Mapping")
   Nop_ProductVariantAttributeValueLocalized   Nop_ProductVariantAttributeValueLocalized[]
 
   @@index([ProductVariantAttributeID], map: "IX_Nop_ProductVariantAttributeValue_ProductVariantAttributeID")
@@ -1482,8 +2290,8 @@ model Nop_ProductVariantAttributeValueLocalized {
   ProductVariantAttributeValueID          Int
   LanguageID                              Int
   Name                                    String                           @db.NVarChar(100)
-  Nop_Language                            Nop_Language                     @relation(fields: [LanguageID], references: [LanguageId], onDelete: Cascade, map: "FK_Nop_ProductVariantAttributeValueLocalized_Nop_Language")
-  Nop_ProductVariantAttributeValue        Nop_ProductVariantAttributeValue @relation(fields: [ProductVariantAttributeValueID], references: [ProductVariantAttributeValueID], onDelete: Cascade, map: "FK_Nop_ProductVariantAttributeValueLocalized_Nop_ProductVariantAttributeValue")
+  Nop_Language                            Nop_Language                     @relation(fields: [LanguageID], references: [LanguageId], onUpdate: NoAction, onDelete: NoAction, map: "FK_Nop_ProductVariantAttributeValueLocalized_Nop_Language")
+  Nop_ProductVariantAttributeValue        Nop_ProductVariantAttributeValue @relation(fields: [ProductVariantAttributeValueID], references: [ProductVariantAttributeValueID], onUpdate: NoAction, onDelete: NoAction, map: "FK_Nop_ProductVariantAttributeValueLocalized_Nop_ProductVariantAttributeValue")
 
   @@unique([ProductVariantAttributeValueID, LanguageID], map: "IX_Nop_ProductVariantAttributeValueLocalized_Unique1")
 }
@@ -1494,8 +2302,8 @@ model Nop_ProductVariantLocalized {
   LanguageID                Int
   Name                      String             @db.NVarChar(400)
   Description               String             @db.NVarChar(Max)
-  Nop_Language              Nop_Language       @relation(fields: [LanguageID], references: [LanguageId], onDelete: Cascade, map: "FK_Nop_ProductVariantLocalized_Nop_Language")
-  Nop_ProductVariant        Nop_ProductVariant @relation(fields: [ProductVariantID], references: [ProductVariantId], onDelete: Cascade, map: "FK_Nop_ProductVariantLocalized_Nop_ProductVariant")
+  Nop_Language              Nop_Language       @relation(fields: [LanguageID], references: [LanguageId], onUpdate: NoAction, onDelete: NoAction, map: "FK_Nop_ProductVariantLocalized_Nop_Language")
+  Nop_ProductVariant        Nop_ProductVariant @relation(fields: [ProductVariantID], references: [ProductVariantId], onUpdate: NoAction, onDelete: NoAction, map: "FK_Nop_ProductVariantLocalized_Nop_ProductVariant")
 
   @@unique([ProductVariantID, LanguageID], map: "IX_Nop_ProductVariantLocalized_Unique1")
 }
@@ -1546,7 +2354,7 @@ model Nop_RecurringPaymentHistory {
   RecurringPaymentID        Int
   OrderID                   Int
   CreatedOn                 DateTime             @db.DateTime
-  Nop_RecurringPayment      Nop_RecurringPayment @relation(fields: [RecurringPaymentID], references: [RecurringPaymentID], onDelete: Cascade, map: "FK_Nop_RecurringPaymentHistory_Nop_RecurringPayment")
+  Nop_RecurringPayment      Nop_RecurringPayment @relation(fields: [RecurringPaymentID], references: [RecurringPaymentID], onUpdate: NoAction, onDelete: NoAction, map: "FK_Nop_RecurringPaymentHistory_Nop_RecurringPayment")
 }
 
 model Nop_RelatedProduct {
@@ -1554,7 +2362,7 @@ model Nop_RelatedProduct {
   ProductID1       Int
   ProductID2       Int
   DisplayOrder     Int
-  Nop_Product      Nop_Product @relation(fields: [ProductID1], references: [ProductId], onDelete: Cascade, map: "FK_Nop_RelatedProduct_Nop_Product")
+  Nop_Product      Nop_Product @relation(fields: [ProductID1], references: [ProductId], onUpdate: NoAction, onDelete: NoAction, map: "FK_Nop_RelatedProduct_Nop_Product")
 
   @@unique([ProductID1, ProductID2], map: "IX_Nop_RelatedProduct_Unique")
   @@index([ProductID1], map: "IX_Nop_RelatedProduct_ProductID1")
@@ -1572,8 +2380,8 @@ model Nop_ReturnRequest {
   ReturnStatusId          Int
   CreatedOn               DateTime                @db.DateTime
   UpdatedOn               DateTime                @db.DateTime
-  Nop_Customer            Nop_Customer            @relation(fields: [CustomerId], references: [CustomerID], onDelete: Cascade, map: "FK_Nop_ReturnRequest_Nop_Customer")
-  Nop_OrderProductVariant Nop_OrderProductVariant @relation(fields: [OrderProductVariantId], references: [OrderProductVariantID], onDelete: Cascade, map: "FK_Nop_ReturnRequest_Nop_OrderProductVariant")
+  Nop_Customer            Nop_Customer            @relation(fields: [CustomerId], references: [CustomerID], onUpdate: NoAction, onDelete: NoAction, map: "FK_Nop_ReturnRequest_Nop_Customer")
+  Nop_OrderProductVariant Nop_OrderProductVariant @relation(fields: [OrderProductVariantId], references: [OrderProductVariantID], onUpdate: NoAction, onDelete: NoAction, map: "FK_Nop_ReturnRequest_Nop_OrderProductVariant")
 }
 
 model Nop_RewardPointsHistory {
@@ -1587,7 +2395,7 @@ model Nop_RewardPointsHistory {
   CustomerCurrencyCode         String       @db.NVarChar(5)
   Message                      String
   CreatedOn                    DateTime     @db.DateTime
-  Nop_Customer                 Nop_Customer @relation(fields: [CustomerID], references: [CustomerID], onDelete: Cascade, map: "FK_Nop_RewardPointsHistory_Nop_Customer")
+  Nop_Customer                 Nop_Customer @relation(fields: [CustomerID], references: [CustomerID], onUpdate: NoAction, onDelete: NoAction, map: "FK_Nop_RewardPointsHistory_Nop_Customer")
 }
 
 model Nop_SearchLog {
@@ -1612,7 +2420,7 @@ model Nop_ShippingByTotal {
   UsePercentage            Boolean
   ShippingChargePercentage Decimal            @db.Decimal(18, 2)
   ShippingChargeAmount     Decimal            @db.Decimal(18, 2)
-  Nop_ShippingMethod       Nop_ShippingMethod @relation(fields: [ShippingMethodID], references: [ShippingMethodID], onDelete: Cascade, map: "FK_Nop_ShippingByTotal_Nop_ShippingMethod")
+  Nop_ShippingMethod       Nop_ShippingMethod @relation(fields: [ShippingMethodID], references: [ShippingMethodID], onUpdate: NoAction, onDelete: NoAction, map: "FK_Nop_ShippingByTotal_Nop_ShippingMethod")
 }
 
 model Nop_ShippingByWeight {
@@ -1623,7 +2431,7 @@ model Nop_ShippingByWeight {
   UsePercentage            Boolean
   ShippingChargePercentage Decimal            @db.Decimal(18, 2)
   ShippingChargeAmount     Decimal            @db.Decimal(18, 2)
-  Nop_ShippingMethod       Nop_ShippingMethod @relation(fields: [ShippingMethodID], references: [ShippingMethodID], onDelete: Cascade, map: "FK_Nop_ShippingByWeight_Nop_ShippingMethod")
+  Nop_ShippingMethod       Nop_ShippingMethod @relation(fields: [ShippingMethodID], references: [ShippingMethodID], onUpdate: NoAction, onDelete: NoAction, map: "FK_Nop_ShippingByWeight_Nop_ShippingMethod")
 }
 
 model Nop_ShippingByWeightAndCountry {
@@ -1635,8 +2443,8 @@ model Nop_ShippingByWeightAndCountry {
   UsePercentage                Boolean
   ShippingChargePercentage     Decimal            @db.Decimal(18, 2)
   ShippingChargeAmount         Decimal            @db.Decimal(18, 2)
-  Nop_Country                  Nop_Country        @relation(fields: [CountryID], references: [CountryID], onDelete: Cascade, map: "FK_Nop_ShippingByWeightAndCountry_Nop_Country")
-  Nop_ShippingMethod           Nop_ShippingMethod @relation(fields: [ShippingMethodID], references: [ShippingMethodID], onDelete: Cascade, map: "FK_Nop_ShippingByWeightAndCountry_Nop_ShippingMethod")
+  Nop_Country                  Nop_Country        @relation(fields: [CountryID], references: [CountryID], onUpdate: NoAction, onDelete: NoAction, map: "FK_Nop_ShippingByWeightAndCountry_Nop_Country")
+  Nop_ShippingMethod           Nop_ShippingMethod @relation(fields: [ShippingMethodID], references: [ShippingMethodID], onUpdate: NoAction, onDelete: NoAction, map: "FK_Nop_ShippingByWeightAndCountry_Nop_ShippingMethod")
 }
 
 model Nop_ShippingMethod {
@@ -1653,8 +2461,8 @@ model Nop_ShippingMethod {
 model Nop_ShippingMethod_RestrictedCountries {
   ShippingMethodID   Int
   CountryID          Int
-  Nop_Country        Nop_Country        @relation(fields: [CountryID], references: [CountryID], onDelete: Cascade, map: "FK_Nop_ShippingMethod_RestrictedCountries_Nop_Country")
-  Nop_ShippingMethod Nop_ShippingMethod @relation(fields: [ShippingMethodID], references: [ShippingMethodID], onDelete: Cascade, map: "FK_Nop_ShippingMethod_RestrictedCountries_Nop_ShippingMethod")
+  Nop_Country        Nop_Country        @relation(fields: [CountryID], references: [CountryID], onUpdate: NoAction, onDelete: NoAction, map: "FK_Nop_ShippingMethod_RestrictedCountries_Nop_Country")
+  Nop_ShippingMethod Nop_ShippingMethod @relation(fields: [ShippingMethodID], references: [ShippingMethodID], onUpdate: NoAction, onDelete: NoAction, map: "FK_Nop_ShippingMethod_RestrictedCountries_Nop_ShippingMethod")
 
   @@id([ShippingMethodID, CountryID], map: "PK_Nop_ShippingMethod_RestrictedCountries")
 }
@@ -1679,8 +2487,8 @@ model Nop_ShoppingCartItem {
   Quantity             Int
   CreatedOn            DateTime            @db.DateTime
   UpdatedOn            DateTime            @db.DateTime
-  Nop_CustomerSession  Nop_CustomerSession @relation(fields: [CustomerSessionGUID], references: [CustomerSessionGUID], onDelete: Cascade, map: "FK_Nop_ShoppingCart_Nop_CustomerSession")
-  Nop_ProductVariant   Nop_ProductVariant  @relation(fields: [ProductVariantID], references: [ProductVariantId], onDelete: Cascade, map: "FK_Nop_ShoppingCart_Nop_ProductVariant")
+  Nop_CustomerSession  Nop_CustomerSession @relation(fields: [CustomerSessionGUID], references: [CustomerSessionGUID], onUpdate: NoAction, onDelete: NoAction, map: "FK_Nop_ShoppingCart_Nop_CustomerSession")
+  Nop_ProductVariant   Nop_ProductVariant  @relation(fields: [ProductVariantID], references: [ProductVariantId], onUpdate: NoAction, onDelete: NoAction, map: "FK_Nop_ShoppingCart_Nop_ProductVariant")
 
   @@index([ShoppingCartTypeID, CustomerSessionGUID], map: "IX_Nop_ShoppingCartItem_ShoppingCartTypeID_CustomerSessionGUID")
 }
@@ -1706,8 +2514,8 @@ model Nop_SpecificationAttributeLocalized {
   SpecificationAttributeID          Int
   LanguageID                        Int
   Name                              String                     @db.NVarChar(100)
-  Nop_Language                      Nop_Language               @relation(fields: [LanguageID], references: [LanguageId], onDelete: Cascade, map: "FK_Nop_SpecificationAttributeLocalized_Nop_Language")
-  Nop_SpecificationAttribute        Nop_SpecificationAttribute @relation(fields: [SpecificationAttributeID], references: [SpecificationAttributeID], onDelete: Cascade, map: "FK_Nop_SpecificationAttributeLocalized_Nop_SpecificationAttribute")
+  Nop_Language                      Nop_Language               @relation(fields: [LanguageID], references: [LanguageId], onUpdate: NoAction, onDelete: NoAction, map: "FK_Nop_SpecificationAttributeLocalized_Nop_Language")
+  Nop_SpecificationAttribute        Nop_SpecificationAttribute @relation(fields: [SpecificationAttributeID], references: [SpecificationAttributeID], onUpdate: NoAction, onDelete: NoAction, map: "FK_Nop_SpecificationAttributeLocalized_Nop_SpecificationAttribute")
 
   @@unique([SpecificationAttributeID, LanguageID], map: "IX_Nop_SpecificationAttributeLocalized_Unique1")
 }
@@ -1718,7 +2526,7 @@ model Nop_SpecificationAttributeOption {
   Name                                       String                                       @db.NVarChar(500)
   DisplayOrder                               Int                                          @default(1, map: "DF_Nop_SpecificationAttributeOption_DisplayOrder")
   Nop_Product_SpecificationAttribute_Mapping Nop_Product_SpecificationAttribute_Mapping[]
-  Nop_SpecificationAttribute                 Nop_SpecificationAttribute                   @relation(fields: [SpecificationAttributeID], references: [SpecificationAttributeID], onDelete: Cascade, map: "FK_Nop_SpecificationAttributeOption_Nop_SpecificationAttribute")
+  Nop_SpecificationAttribute                 Nop_SpecificationAttribute                   @relation(fields: [SpecificationAttributeID], references: [SpecificationAttributeID], onUpdate: NoAction, onDelete: NoAction, map: "FK_Nop_SpecificationAttributeOption_Nop_SpecificationAttribute")
   Nop_SpecificationAttributeOptionLocalized  Nop_SpecificationAttributeOptionLocalized[]
 }
 
@@ -1727,8 +2535,8 @@ model Nop_SpecificationAttributeOptionLocalized {
   SpecificationAttributeOptionID          Int
   LanguageID                              Int
   Name                                    String                           @db.NVarChar(500)
-  Nop_Language                            Nop_Language                     @relation(fields: [LanguageID], references: [LanguageId], onDelete: Cascade, map: "FK_Nop_SpecificationAttributeOptionLocalized_Nop_Language")
-  Nop_SpecificationAttributeOption        Nop_SpecificationAttributeOption @relation(fields: [SpecificationAttributeOptionID], references: [SpecificationAttributeOptionID], onDelete: Cascade, map: "FK_Nop_SpecificationAttributeOptionLocalized_Nop_SpecificationAttributeOption")
+  Nop_Language                            Nop_Language                     @relation(fields: [LanguageID], references: [LanguageId], onUpdate: NoAction, onDelete: NoAction, map: "FK_Nop_SpecificationAttributeOptionLocalized_Nop_Language")
+  Nop_SpecificationAttributeOption        Nop_SpecificationAttributeOption @relation(fields: [SpecificationAttributeOptionID], references: [SpecificationAttributeOptionID], onUpdate: NoAction, onDelete: NoAction, map: "FK_Nop_SpecificationAttributeOptionLocalized_Nop_SpecificationAttributeOption")
 
   @@unique([SpecificationAttributeOptionID, LanguageID], map: "IX_Nop_SpecificationAttributeOptionLocalized_Unique1")
 }
@@ -1739,7 +2547,7 @@ model Nop_StateProvince {
   Name            String      @db.NVarChar(100)
   Abbreviation    String      @db.NVarChar(30)
   DisplayOrder    Int
-  Nop_Country     Nop_Country @relation(fields: [CountryID], references: [CountryID], onDelete: Cascade, map: "FK_Nop_StateProvince_Nop_Country")
+  Nop_Country     Nop_Country @relation(fields: [CountryID], references: [CountryID], onUpdate: NoAction, onDelete: NoAction, map: "FK_Nop_StateProvince_Nop_Country")
 
   @@index([CountryID], map: "IX_Nop_StateProvince_CountryID")
 }
@@ -1769,8 +2577,8 @@ model Nop_TaxRate {
   StateProvinceID Int
   Zip             String          @db.NVarChar(50)
   Percentage      Decimal         @db.Decimal(18, 4)
-  Nop_Country     Nop_Country     @relation(fields: [CountryID], references: [CountryID], onDelete: Cascade, map: "FK_Nop_TaxRate_Nop_Country")
-  Nop_TaxCategory Nop_TaxCategory @relation(fields: [TaxCategoryID], references: [TaxCategoryID], onDelete: Cascade, map: "FK_Nop_TaxRate_Nop_TaxCategory")
+  Nop_Country     Nop_Country     @relation(fields: [CountryID], references: [CountryID], onUpdate: NoAction, onDelete: NoAction, map: "FK_Nop_TaxRate_Nop_Country")
+  Nop_TaxCategory Nop_TaxCategory @relation(fields: [TaxCategoryID], references: [TaxCategoryID], onUpdate: NoAction, onDelete: NoAction, map: "FK_Nop_TaxRate_Nop_TaxCategory")
 }
 
 model Nop_TierPrice {
@@ -1778,7 +2586,7 @@ model Nop_TierPrice {
   ProductVariantID   Int
   Quantity           Int
   Price              Float              @db.Money
-  Nop_ProductVariant Nop_ProductVariant @relation(fields: [ProductVariantID], references: [ProductVariantId], onDelete: Cascade, map: "FK_Nop_TierPrice_Nop_ProductVariant")
+  Nop_ProductVariant Nop_ProductVariant @relation(fields: [ProductVariantID], references: [ProductVariantId], onUpdate: NoAction, onDelete: NoAction, map: "FK_Nop_TierPrice_Nop_ProductVariant")
 
   @@index([ProductVariantID], map: "IX_Nop_TierPrice_ProductVariantID")
 }
@@ -1805,8 +2613,8 @@ model Nop_TopicLocalized {
   MetaTitle        String       @default("", map: "DF_Nop_TopicLocalized_MetaTitle") @db.NVarChar(400)
   MetaKeywords     String       @default("", map: "DF_Nop_TopicLocalized_MetaKeywords") @db.NVarChar(400)
   MetaDescription  String       @default("", map: "DF_Nop_TopicLocalized_MetaDescription") @db.NVarChar(4000)
-  Nop_Language     Nop_Language @relation(fields: [LanguageID], references: [LanguageId], onDelete: Cascade, map: "FK_Nop_TopicLocalized_Nop_Language")
-  Nop_Topic        Nop_Topic    @relation(fields: [TopicID], references: [TopicID], onDelete: Cascade, map: "FK_Nop_TopicLocalized_Nop_Topic")
+  Nop_Language     Nop_Language @relation(fields: [LanguageID], references: [LanguageId], onUpdate: NoAction, onDelete: NoAction, map: "FK_Nop_TopicLocalized_Nop_Language")
+  Nop_Topic        Nop_Topic    @relation(fields: [TopicID], references: [TopicID], onUpdate: NoAction, onDelete: NoAction, map: "FK_Nop_TopicLocalized_Nop_Topic")
 
   @@index([LanguageID], map: "IX_Nop_TopicLocalized_LanguageID")
 }
