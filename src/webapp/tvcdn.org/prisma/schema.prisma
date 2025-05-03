@@ -9,7 +9,6 @@ datasource db {
   url      = env("DATABASE_URL")
 }
 
-
 model User {
   id            String    @id @default(cuid())
   name          String?
@@ -23,13 +22,13 @@ model User {
 
   locale String?
 
-  role String? @default("USER")
+  role             String?         @default("USER")
   stripeCustomerId String?         @unique
   Session          Session[]
   Account          Account?
   Authenticator    Authenticator[]
 
-  Orders           StoreOrder[]    @relation("UserOrders")
+  Orders            StoreOrder[]        @relation("UserOrders")
   SupportTicketFrom SupportTicket[]     @relation("SupportTicketFrom")
   SupportTicketTo   SupportTicket[]     @relation("SupportTicketTo")
   NotificationFrom  StoreNotification[] @relation("NotificationFrom")
@@ -41,7 +40,6 @@ model User {
   @@index([username])
   @@index([email])
 }
-
 
 model Account {
   id                       String   @id @default(cuid())
@@ -141,7 +139,7 @@ model Currency {
 }
 
 model Locale {
-  id                String @id @unique @db.VarChar(5)
+  id                String @id @unique
   name              String
   lng               String //2 digit language code
   defaultCurrencyId String
@@ -156,7 +154,7 @@ model Address {
   firstName   String
   lastName    String
   company     String?
-  countryId   String  @db.VarChar(3)
+  countryId   String   @db.VarChar(3)
   streetLine1 String
   streetLine2 String?
   city        String
@@ -214,7 +212,7 @@ model ShippingMethod {
   name         String   @unique
   description  String?
   basic_price  Decimal  @default(0)
-  currencyId   String   @default("twd")
+  currencyId   String   @default("usd")
   isDeleted    Boolean  @default(false)
   isDefault    Boolean  @default(false)
   shipRequried Boolean  @default(true)
@@ -306,7 +304,7 @@ model SubscriptionPayment {
   storeId            String
   isPaid             Boolean
   amount             Decimal
-  currency           String    @default("twd")
+  currency           String    @default("usd")
   checkoutAttributes String    @default("")
   paidAt             DateTime?
   createdAt          DateTime  @default(now())
@@ -495,7 +493,7 @@ model Product {
   description String?
   isFeatured  Boolean  @default(false)
   status      Int      @default(1) //ProductStatus, 1 = Published, 0 = Draft
-  currency    String   @default("twd")
+  currency    String   @default("usd")
   price       Decimal  @default(0)
   useOption   Boolean  @default(true) // when true, price is calculated based on product option
   createdAt   DateTime @default(now())
@@ -659,7 +657,7 @@ model StoreLedger {
   amount      Decimal
   fee         Decimal // fee from payment type. e.g. linepay = 3%
   platformFee Decimal // riben.life's fee
-  currency    String  @default("twd")
+  currency    String  @default("usd")
   type        Int     @default(0) // 0: 代收 | 1: store's own payment provider
   balance     Decimal
   description String
@@ -680,13 +678,13 @@ model StoreOrder {
   storeId            String
   userId             String?
   tableId            String?
-  orderNum           Int      @default(autoincrement())
+  orderNum           Int       @default(autoincrement())
   pickupCode         String?
   isPaid             Boolean   @default(false)
   paidDate           DateTime?
   checkoutAttributes String    @default("")
   checkoutRef        String    @default("")
-  currency           String    @default("twd")
+  currency           String    @default("usd")
   currencyRate       Decimal   @default(1)
 
   discount Decimal @default(0)
@@ -773,6 +771,7 @@ model OrderNote {
 model FaqCategory {
   id        String @id @default(uuid())
   storeId   String
+  localeId  String
   name      String
   sortOrder Int
   FAQ       Faq[]
@@ -784,8 +783,10 @@ model FaqCategory {
 }
 
 model Faq {
-  id          String      @id @default(uuid())
-  categoryId  String
+  id         String @id @default(uuid())
+  categoryId String
+  localeId   String
+
   question    String
   answer      String
   sortOrder   Int
@@ -897,6 +898,7 @@ view orderitemview {
   @@index([orderId])
   @@index([productId])
 }
+
 /// The underlying table does not contain a valid unique identifier and can therefore currently not be handled by Prisma Client.
 model drgnMemberTB {
   MID           Int
