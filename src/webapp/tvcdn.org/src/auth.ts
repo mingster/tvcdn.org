@@ -7,7 +7,7 @@ import Discord from "next-auth/providers/discord";
 import FacebookProvider from "next-auth/providers/facebook";
 import GoogleProvider from "next-auth/providers/google";
 import LineProdiver from "next-auth/providers/line";
-import Nodemailer from "next-auth/providers/nodemailer";
+//import Nodemailer from "next-auth/providers/nodemailer";
 
 /*
 import EmailProvider from "next-auth/providers/email";
@@ -142,6 +142,7 @@ export const { handlers, signIn, signOut, auth } = NextAuth({
 			clientSecret: `${process.env.AUTH_FACEBOOK_SECRET}`,
 			//allowDangerousEmailAccountLinking: true,
 		}),
+		/*
 		Nodemailer({
 			server: `smtp://${process.env.EMAIL_SERVER_USER}:${process.env.EMAIL_SERVER_PASSWORD}@${process.env.EMAIL_SERVER_HOST}:${process.env.EMAIL_SERVER_PORT}`,
 			from: process.env.EMAIL_FROM,
@@ -167,6 +168,9 @@ export const { handlers, signIn, signOut, auth } = NextAuth({
 				return crypto.randomUUID();
 			},
 		}),
+
+		*/
+
 	],
 	pages: {
 		//signIn: "/signin",

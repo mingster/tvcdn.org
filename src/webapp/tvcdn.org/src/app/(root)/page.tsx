@@ -1,4 +1,5 @@
 "use client";
+
 import { Loader } from "@/components/ui/loader";
 import { getHostname } from "@/lib/utils";
 import type { Store } from "@prisma/client";

@@ -8,19 +8,13 @@ import { Card, CardContent, CardFooter } from "@/components/ui/card";
 import { OrderStatus, PaymentStatus } from "@/types/enum";
 import { useRouter } from "next/navigation";
 
-import logger from "@/lib/logger";
 import { formatDateTime } from "@/lib/utils";
 import type { StoreOrder } from "@/types";
-import type { PaymentMethod, StoreTables, orderitemview } from "@prisma/client";
-import { format } from "date-fns/format";
+import type { orderitemview } from "@prisma/client";
 import Currency from "./currency";
 import { DisplayOrderStatus } from "./order-status-display";
 
 type orderProps = { order: StoreOrder };
-
-export function getTableName(tables: StoreTables[], tableId: string) {
-	return tables.find((table) => table.id === tableId)?.tableName || "";
-}
 
 // show order success prompt and then redirect the customer to view order page (購物明細)
 export const DisplayOrder: React.FC<orderProps> = ({ order }) => {
