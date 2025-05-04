@@ -1,4 +1,4 @@
-import { checkStoreAccess } from "@/app/storeAdmin/store-admin-utils";
+import { checkStoreAccess } from "@/lib/store-admin-utils";
 import Container from "@/components/ui/container";
 import { Loader } from "@/components/ui/loader";
 import { Suspense } from "react";
@@ -20,9 +20,7 @@ export default async function BalanceMgmtPage(props: {
 
 	return (
 		<Suspense fallback={<Loader />}>
-			<Container>
-TBD
-			</Container>
+			<Container>TBD</Container>
 		</Suspense>
 	);
 }

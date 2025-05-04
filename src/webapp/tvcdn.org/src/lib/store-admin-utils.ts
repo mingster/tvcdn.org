@@ -2,7 +2,6 @@ import checkStoreAdminAccess from "@/actions/storeAdmin/check-store-access";
 import isProLevel from "@/actions/storeAdmin/is-pro-level";
 import { GetSession } from "@/lib/auth/utils";
 import { transformDecimalsToNumbers } from "@/lib/utils";
-import { Store, StoreTables } from "@prisma/client";
 import type { Session } from "next-auth";
 import { redirect } from "next/navigation";
 
@@ -31,8 +30,3 @@ export const checkStoreAccess = async (storeId: string) => {
 export const isPro = async (storeId: string) => {
 	return await isProLevel(storeId);
 };
-
-
-export function getTableName(tables: StoreTables[], tableId: string) {
-	return tables.find((table) => table.id === tableId)?.tableName || "";
-}

@@ -7,7 +7,7 @@ import Discord from "next-auth/providers/discord";
 import FacebookProvider from "next-auth/providers/facebook";
 import GoogleProvider from "next-auth/providers/google";
 import LineProdiver from "next-auth/providers/line";
-//import Nodemailer from "next-auth/providers/nodemailer";
+import Nodemailer from "next-auth/providers/nodemailer";
 
 /*
 import EmailProvider from "next-auth/providers/email";
@@ -33,9 +33,9 @@ const isDevelopmentMode = process.env.NODE_ENV === "development";
 /*
 const getUser = async (email: string) =>
   await prisma.user.findFirst({
-    where: {
-      email,
-    },
+	where: {
+	  email,
+	},
   });
 
 export const getToken = (test: string) => {
@@ -82,32 +82,32 @@ export const { handlers, signIn, signOut, auth } = NextAuth({
 	},
 	providers: [
 		/*
-    CredentialsProvider({
-      name: 'Sign in',
-      credentials: {
-        email: {
-          label: 'Email',
-          type: 'email',
-          placeholder: 'example@example.com',
-        },
-        password: { label: 'Password', type: 'password' },
-      },
-      async authorize(credentials) {
-        const user = {
-          id: 'clpeskcno000089avfp9mig0x',
-          name: 'Ming the man',
-          email: 'm@mingster.com',
-          image: 'https://i.pravatar.cc/150?u=m@ming.com',
-          role: 'ADMIN',
-        };
-        return user;
-      },
-    }),
-    */
+	CredentialsProvider({
+	  name: 'Sign in',
+	  credentials: {
+		email: {
+		  label: 'Email',
+		  type: 'email',
+		  placeholder: 'example@example.com',
+		},
+		password: { label: 'Password', type: 'password' },
+	  },
+	  async authorize(credentials) {
+		const user = {
+		  id: 'clpeskcno000089avfp9mig0x',
+		  name: 'Ming the man',
+		  email: 'm@mingster.com',
+		  image: 'https://i.pravatar.cc/150?u=m@ming.com',
+		  role: 'ADMIN',
+		};
+		return user;
+	  },
+	}),
+	*/
 		/*
-    https://next-auth.js.org/providers/google
-    https://console.cloud.google.com/?project=legod-397304
-    */
+	https://next-auth.js.org/providers/google
+	https://console.cloud.google.com/?project=legod-397304
+	*/
 		GoogleProvider({
 			clientId: `${process.env.AUTH_GOOGLE_ID}`,
 			clientSecret: `${process.env.AUTH_GOOGLE_SECRET}`,
@@ -142,7 +142,7 @@ export const { handlers, signIn, signOut, auth } = NextAuth({
 			clientSecret: `${process.env.AUTH_FACEBOOK_SECRET}`,
 			//allowDangerousEmailAccountLinking: true,
 		}),
-		/*
+
 		Nodemailer({
 			server: `smtp://${process.env.EMAIL_SERVER_USER}:${process.env.EMAIL_SERVER_PASSWORD}@${process.env.EMAIL_SERVER_HOST}:${process.env.EMAIL_SERVER_PORT}`,
 			from: process.env.EMAIL_FROM,
@@ -168,9 +168,9 @@ export const { handlers, signIn, signOut, auth } = NextAuth({
 				return crypto.randomUUID();
 			},
 		}),
+		/*
 
 		*/
-
 	],
 	pages: {
 		//signIn: "/signin",
@@ -209,10 +209,10 @@ export const { handlers, signIn, signOut, auth } = NextAuth({
 			return true;
 		},
 		/*
-    async redirect({ url, baseUrl }) {
-      return baseUrl;
-    },
-    */
+	async redirect({ url, baseUrl }) {
+	  return baseUrl;
+	},
+	*/
 		async session({ session, token, user }) {
 			if (token) {
 				// token only available when strategy is jwt
@@ -221,10 +221,10 @@ export const { handlers, signIn, signOut, auth } = NextAuth({
 
 			if (isDevelopmentMode) {
 				/*
-        console.log(`session: ${JSON.stringify(session)}`);
-        console.log(`user: ${JSON.stringify(user)}`);
-        console.log(`token: ${JSON.stringify(token)}`);
-        */
+		console.log(`session: ${JSON.stringify(session)}`);
+		console.log(`user: ${JSON.stringify(user)}`);
+		console.log(`token: ${JSON.stringify(token)}`);
+		*/
 			}
 
 			// determine user role
@@ -253,14 +253,14 @@ export const { handlers, signIn, signOut, auth } = NextAuth({
 				//session.user.notifications = dbuser?.NotificationTo ?? [];
 
 				/*
-        // refresh google token if needed
-        const [googleAccount] = await sqlClient.account.findMany({
-          where: { userId: session.user.id, provider: "google" },
-        });
-        if (googleAccount) {
-          //refresh_google_token(googleAccount);
-        }
-        */
+		// refresh google token if needed
+		const [googleAccount] = await sqlClient.account.findMany({
+		  where: { userId: session.user.id, provider: "google" },
+		});
+		if (googleAccount) {
+		  //refresh_google_token(googleAccount);
+		}
+		*/
 				//session.user.id = token.sub + '';
 				return Promise.resolve(session);
 			}
