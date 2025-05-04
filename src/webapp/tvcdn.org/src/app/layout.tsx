@@ -8,7 +8,7 @@ import type { Metadata } from "next";
 import type { Session } from "next-auth";
 import { CookiesProvider } from "next-client-cookies/server";
 import { Geist, Geist_Mono, Noto_Sans_TC } from "next/font/google";
-import "./globals.css";
+import "./css/globals.css";
 
 const notoSans = Noto_Sans_TC({
 	variable: "--font-noto-sans",
@@ -52,7 +52,6 @@ export default async function RootLayout({
 					>
 						<CookiesProvider>
 							<I18nProvider>
-								<Navbar title="" />
 								{children}
 							</I18nProvider>
 						</CookiesProvider>
