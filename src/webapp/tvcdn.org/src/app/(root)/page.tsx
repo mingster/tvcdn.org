@@ -51,8 +51,7 @@ export default function GlobalHomePage() {
 				toast(error.message);
 				throw new Error("Something went wrong.");
 			});
-	}
-
+	};
 
 	routeToStore();
 

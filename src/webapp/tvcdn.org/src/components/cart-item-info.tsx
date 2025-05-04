@@ -73,7 +73,7 @@ const CartItemInfo: React.FC<cartItemProps> = ({
 	};
 	/*
   const onRemove = () => {
-	cart.removeItem(currentItem.id);
+    cart.removeItem(currentItem.id);
   };
 */
 
@@ -82,25 +82,25 @@ const CartItemInfo: React.FC<cartItemProps> = ({
 	function getLink(id: string, name: string) {
 		switch (id) {
 			/*
-	  case process.env.NEXT_PUBLIC_BIGCROSS_PRODUCT_ID:
-		return (
-		  <Link
-			href={`/${process.env.NEXT_PUBLIC_STORE_ID}/legod/bigcross/`}
-			className="hover:text-slate"
-		  >
-			{name}
-		  </Link>
-		);
-	  case process.env.NEXT_PUBLIC_SMCROSS_PRODUCT_ID:
-		return (
-		  <Link
-			href={`/${process.env.NEXT_PUBLIC_STORE_ID}/legod/smcross/`}
-			className="hover:text-slate"
-		  >
-			{name}
-		  </Link>
-		);
-	  */
+      case process.env.NEXT_PUBLIC_BIGCROSS_PRODUCT_ID:
+        return (
+          <Link
+            href={`/${process.env.NEXT_PUBLIC_STORE_ID}/legod/bigcross/`}
+            className="hover:text-slate"
+          >
+            {name}
+          </Link>
+        );
+      case process.env.NEXT_PUBLIC_SMCROSS_PRODUCT_ID:
+        return (
+          <Link
+            href={`/${process.env.NEXT_PUBLIC_STORE_ID}/legod/smcross/`}
+            className="hover:text-slate"
+          >
+            {name}
+          </Link>
+        );
+      */
 			default:
 				// if id contains ?, it has options. return just name to prevent 404 error
 				if (id.includes("?")) return <>{name}</>;

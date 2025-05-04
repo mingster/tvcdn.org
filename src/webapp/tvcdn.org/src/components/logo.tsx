@@ -1,10 +1,7 @@
 import clsx from "clsx";
 
 export function Logo({ className, ...props }: { className?: string }) {
-	return (
-		<div className="flex items-center gap-1">LOGO
-		</div>
-	);
+	return <div className="flex items-center gap-1">LOGO</div>;
 }
 
 /*

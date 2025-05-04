@@ -51,9 +51,7 @@ export default async function RootLayout({
 						disableTransitionOnChange
 					>
 						<CookiesProvider>
-							<I18nProvider>
-								{children}
-							</I18nProvider>
+							<I18nProvider>{children}</I18nProvider>
 						</CookiesProvider>
 					</NextThemeProvider>
 					<Toaster />
