@@ -148,28 +148,16 @@ export const ContactForm = () => {
 			);
 
 			if (result.status === 200) {
-				toast({
-					title: "我們已經收到你的訊息，會盡快回覆你。",
-					description: "",
-					variant: "success",
-				});
+				toast("我們已經收到你的訊息，會盡快回覆你。");
 			} else {
-				toast({
-					title: "Ahh, something went wrong. Please try again.",
-					description: `${result.status} ${result.statusText}`,
-					variant: "destructive",
-				});
+				toast("Ahh, something went wrong. Please try again.");
 
 				console.log(JSON.stringify(result));
 			}
 		} catch (error: unknown) {
 			const err = error as AxiosError;
 			console.log(err);
-			toast({
-				title: "Ahh, something went wrong. Please try again.",
-				description: "",
-				variant: "destructive",
-			});
+			toast("Ahh, something went wrong. Please try again.");
 		} finally {
 			setLoading(false);
 		}
