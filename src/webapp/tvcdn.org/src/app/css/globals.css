@@ -3,6 +3,28 @@
 
 @custom-variant dark (&:is(.dark *));
 
+
+.active-scroll-spy {
+	background-color: #006988;
+	font-weight: bolder;
+	color: #fff;
+	padding: 10px;
+	border-radius: 15px;
+	transition: all 0.5s;
+}
+.ss-item {
+	margin: 10px;
+}
+
+a {
+	@apply cursor-pointer;
+	color: var(--color-muted-foreground);
+}
+
+a:hover {
+	text-decoration: underline;
+}
+
 @theme inline {
 	--font-serif: var(--font-noto-sans), ui-serif, Georgia, Cambria,
 		"Times New Roman", Times, serif;
