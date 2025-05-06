@@ -3,7 +3,6 @@
 
 @custom-variant dark (&:is(.dark *));
 
-
 .active-scroll-spy {
 	background-color: #006988;
 	font-weight: bolder;
@@ -16,9 +15,8 @@
 	margin: 10px;
 }
 
-a {
+a, button, input {
 	@apply cursor-pointer;
-	color: var(--color-muted-foreground);
 }
 
 a:hover {
