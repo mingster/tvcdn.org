@@ -1,0 +1,96 @@
+# Product Requirements Document (PRD)
+# Product Name: tvcdn.org
+# Version: 1.0
+# Author: [Your Name]
+# Last Updated: 2025-05-13
+
+## Overview
+tvcdn.org is a global video-sharing platform allowing users to upload, view, share, comment, and interact with video content. The platform supports creators, advertisers, and viewers with various engagement and monetization features. This PRD outlines the core functionalities, user personas, and system requirements for Taskmaster-AI parsing.
+
+## Objectives
+- Enable seamless video uploads, streaming, and discovery
+- Provide monetization tools for content creators
+- Ensure user safety and content moderation
+- Deliver personalized content recommendations
+- Support community and engagement features
+
+## User Personas
+- **Viewer:** Watches videos, subscribes to channels, interacts via likes/comments.
+- **Creator:** Uploads videos, manages channels, monitors performance.
+- **Advertiser:** Publishes ads, targets user segments, tracks performance.
+- **Moderator/Admin:** Reviews flagged content, enforces community guidelines.
+
+## Functional Requirements
+
+### Video Management
+- [ ] Upload video (formats: MP4, MOV, etc.)
+- [ ] Edit video metadata (title, description, tags)
+- [ ] Add captions/subtitles
+- [ ] Schedule publish date
+- [ ] Set video visibility (Public/Unlisted/Private)
+- [ ] Live streaming support
+
+### Content Discovery
+- [ ] Search bar with autocomplete
+- [ ] Trending and recommended videos
+- [ ] Browse by category, topic, or tag
+- [ ] Channel pages with subscription option
+- [ ] Shorts and Stories support
+
+### Playback Features
+- [ ] Adaptive bitrate streaming (up to 8K)
+- [ ] Play/pause/seek/volume control
+- [ ] Closed captions/subtitles
+- [ ] Picture-in-picture mode
+- [ ] Playback speed control
+
+### Engagement
+- [ ] Like/dislike system
+- [ ] Commenting with moderation tools
+- [ ] Share buttons (social + embed)
+- [ ] Community posts (polls, text, images)
+- [ ] Notifications for subscriptions and interactions
+
+### Creator Tools
+- [ ] YouTube Studio dashboard
+- [ ] Analytics: views, watch time, demographics
+- [ ] Monetization: AdSense, Memberships, Super Chats
+- [ ] Content ID and copyright tools
+
+### Moderation & Safety
+- [ ] Flag/report video or comment
+- [ ] Automatic and manual content review
+- [ ] Community Guidelines enforcement
+- [ ] Restricted Mode for families/schools
+
+### Account & Profile
+- [ ] Google Account login integration
+- [ ] Profile customization (avatar, banner)
+- [ ] Manage watch and search history
+- [ ] Privacy settings (subscriptions, likes, saved videos)
+
+## Non-Functional Requirements
+- [ ] High availability (99.9% uptime)
+- [ ] Global CDN support for low-latency streaming
+- [ ] Scalable infrastructure (cloud-native)
+- [ ] Accessibility compliance (WCAG 2.1)
+- [ ] GDPR & COPPA compliance
+
+## Metrics for Success
+- Daily active users (DAU)
+- Average watch time per user
+- Video engagement rate (likes/comments/shares)
+- Creator revenue growth
+- Ad revenue and conversion rate
+
+## Open Questions
+- What is the roadmap for Shorts monetization parity with long-form content?
+- Should AI-generated content have different labeling or rules?
+- What level of moderation transparency should be provided to users?
+
+## Assumptions
+- Users have internet access with a compatible browser/device
+- Users accept YouTube's Terms of Service
+- Content creators follow monetization guidelines
+
+# End of Document
